@@ -15,12 +15,12 @@ export function BalanceCard({ balanceUsd, change24hUsd, change24hPct, hidden, on
     <section className="card balance-card">
       <div className="balance-glow" />
       <div className="balance-plastic" aria-hidden>
-        <div className="plastic-logo"><LogoX size={34} /><span>Crypto IX</span></div>
+        <div className="plastic-logo"><LogoX size={26} /><span>Crypto IX</span></div>
         <div className="plastic-chip" />
       </div>
-      <div className="brand"><LogoX /><span>Crypto <b>IX</b></span></div>
+      <div className="brand"><LogoX size={24} /><span>Crypto <b>IX</b></span></div>
       <button className="balance-label" onClick={onToggleHidden}>
-        Общий баланс {hidden ? <IconEyeOff size={20} /> : <IconEye size={20} />}
+        Общий баланс {hidden ? <IconEyeOff size={15} /> : <IconEye size={15} />}
       </button>
       <div className="balance-amount">{hidden ? '$ ••••••' : fmtUsd(balanceUsd)}</div>
       <div className={`balance-change ${up ? 'up' : 'down'}`}>

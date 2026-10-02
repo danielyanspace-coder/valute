@@ -26,10 +26,10 @@ export function Header({ user, supportUnread, onSupport, onHelp, onProfile }: Pr
       </button>
       <div className="header-actions">
         <button className="icon-btn" onClick={onSupport} aria-label="Поддержка">
-          <IconHeadset />
+          <IconHeadset size={18} />
           {supportUnread > 0 && <span className="badge">{supportUnread > 99 ? '99+' : supportUnread}</span>}
         </button>
-        <button className="icon-btn" onClick={onHelp} aria-label="Помощь"><IconHelp /></button>
+        <button className="icon-btn" onClick={onHelp} aria-label="Помощь"><IconHelp size={18} /></button>
       </div>
     </header>
   );

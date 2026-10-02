@@ -4,12 +4,12 @@ import { IconGrid, IconHistory, IconHome, IconQr, IconUser } from './icons';
 export type Tab = 'home' | 'history' | 'services' | 'profile';
 
 const LEFT: { id: Tab; label: string; icon: ReactNode }[] = [
-  { id: 'home', label: 'Главная', icon: <IconHome size={30} /> },
-  { id: 'history', label: 'История', icon: <IconHistory size={30} /> },
+  { id: 'home', label: 'Главная', icon: <IconHome size={22} /> },
+  { id: 'history', label: 'История', icon: <IconHistory size={22} /> },
 ];
 const RIGHT: { id: Tab; label: string; icon: ReactNode }[] = [
-  { id: 'services', label: 'Сервисы', icon: <IconGrid size={30} /> },
-  { id: 'profile', label: 'Профиль', icon: <IconUser size={30} /> },
+  { id: 'services', label: 'Сервисы', icon: <IconGrid size={22} /> },
+  { id: 'profile', label: 'Профиль', icon: <IconUser size={22} /> },
 ];
 
 export function BottomNav({ tab, onTab, onScan }: { tab: Tab; onTab: (t: Tab) => void; onScan: () => void }) {
@@ -22,7 +22,7 @@ export function BottomNav({ tab, onTab, onScan }: { tab: Tab; onTab: (t: Tab) =>
   return (
     <div className="bottom-nav">
       {LEFT.map(item)}
-      <button className="nav-scan" onClick={onScan} aria-label="Сканировать QR"><IconQr size={34} /></button>
+      <button className="nav-scan" onClick={onScan} aria-label="Сканировать QR"><IconQr size={24} /></button>
       {RIGHT.map(item)}
     </div>
   );

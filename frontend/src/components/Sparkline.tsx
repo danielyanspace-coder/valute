@@ -37,7 +37,7 @@ export function Sparkline({ values, width = 300, height = 80, color = 'var(--gre
       {dots &&
         pts
           .filter((_, i) => i % step === 0 || i === pts.length - 1)
-          .map(([x, y], i) => <circle key={i} cx={x} cy={y} r="2.2" fill={color} />)}
+          .map(([x, y], i) => <circle key={i} cx={x} cy={y} r="1.6" fill={color} />)}
     </svg>
   );
 }

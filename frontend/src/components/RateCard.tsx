@@ -11,12 +11,12 @@ export function RateCard({ rate, error, onOpen }: { rate: WalletRate | null; err
   return (
     <button className="card rate-card" onClick={onOpen}>
       <div className="rate-top">
-        <CoinIcon symbol="USDT" size={60} />
+        <CoinIcon symbol="USDT" size={38} />
         <div className="rate-title">
           <span className="muted">Актуальный курс кошелька</span>
           <b>USDT</b>
         </div>
-        <IconChevronRight className="rate-chevron" size={20} />
+        <IconChevronRight className="rate-chevron" size={16} />
       </div>
       <div className="rate-bottom">
         <div className="rate-value">
@@ -33,7 +33,7 @@ export function RateCard({ rate, error, onOpen }: { rate: WalletRate | null; err
           )}
         </div>
         <div className="rate-chart">
-          {rate && <Sparkline values={rate.history.map((p) => p.v)} height={70} dots color={up ? 'var(--green)' : 'var(--red)'} />}
+          {rate && <Sparkline values={rate.history.map((p) => p.v)} height={46} dots color={up ? 'var(--green)' : 'var(--red)'} />}
         </div>
       </div>
     </button>
