@@ -1,16 +1,14 @@
-import { fmtPct, fmtUsd } from '../lib/format';
-import { IconEye, IconEyeOff, LogoX } from './icons';
+import { fmtUsd } from '../lib/format';
+import { IconEye, IconEyeOff, IconSnow, LogoX } from './icons';
 
 interface Props {
-  balanceUsd: number;
-  change24hUsd: number;
-  change24hPct: number;
+  balanceUsd: number | null;
+  frozenUsd: number;
   hidden: boolean;
   onToggleHidden: () => void;
 }
 
-export function BalanceCard({ balanceUsd, change24hUsd, change24hPct, hidden, onToggleHidden }: Props) {
-  const up = change24hUsd >= 0;
+export function BalanceCard({ balanceUsd, frozenUsd, hidden, onToggleHidden }: Props) {
   return (
     <section className="card balance-card">
       <div className="balance-glow" />
@@ -22,12 +20,14 @@ export function BalanceCard({ balanceUsd, change24hUsd, change24hPct, hidden, on
       <button className="balance-label" onClick={onToggleHidden}>
         Общий баланс {hidden ? <IconEyeOff size={15} /> : <IconEye size={15} />}
       </button>
-      <div className="balance-amount">{hidden ? '$ ••••••' : fmtUsd(balanceUsd)}</div>
-      <div className={`balance-change ${up ? 'up' : 'down'}`}>
-        <span className="tri">{up ? '▲' : '▼'}</span>
-        {hidden ? '••••' : `${up ? '+' : '−'} ${fmtUsd(Math.abs(change24hUsd))} (${fmtPct(change24hPct).replace(/^[+-]/, '')})`}
-        <span className="muted">за 24ч</span>
+      <div className={`balance-amount ${balanceUsd === null ? 'skeleton' : ''}`}>
+        {hidden ? '$ ••••••' : fmtUsd(balanceUsd ?? 0)}
       </div>
+      {frozenUsd > 0 && (
+        <div className="balance-frozen">
+          <IconSnow size={13} /> {hidden ? '••••' : fmtUsd(frozenUsd)} в обработке вывода
+        </div>
+      )}
       <div className="balance-foot">
         <span>Больше, чем просто кошелек</span>
         <span className="tags">Secure <i>•</i> Fast <i>•</i> Global</span>

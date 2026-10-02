@@ -1,7 +1,11 @@
-try {
-  process.loadEnvFile(new URL('../../.env', import.meta.url));
-} catch {
-  // no .env — rely on real environment variables
+// Repo-root .env, from src (tsx) or from dist/backend/src (compiled). Real env vars win.
+for (const rel of ['../../.env', '../../../../.env']) {
+  try {
+    process.loadEnvFile(new URL(rel, import.meta.url));
+    break;
+  } catch {
+    // not there; fall back to real environment variables
+  }
 }
 
 function num(name: string, fallback: number): number {
@@ -19,11 +23,16 @@ export const config = {
   rateSellDiscountPercent: num('RATE_SELL_DISCOUNT_PERCENT', 5),
   ratePollMs: num('RATE_POLL_MS', 15_000),
   allowDevAuth: process.env.ALLOW_DEV_AUTH === 'true',
-  /** Bearer token for /api/admin/* until a real admin panel exists. Empty = admin API off. */
+  /** Password for the admin panel (/admin) and /api/admin/*. Empty = admin off. */
   adminToken: process.env.ADMIN_TOKEN ?? '',
   rpc: {
     TRON: process.env.TRON_RPC_URL || 'https://tron-rpc.publicnode.com/jsonrpc',
     ETH: process.env.ETH_RPC_URL || 'https://ethereum-rpc.publicnode.com',
   },
   chainalysisSanctionsApiKey: process.env.CHAINALYSIS_SANCTIONS_API_KEY ?? '',
+  databasePath: process.env.DATABASE_PATH || 'data/wallet.db',
+  /** Support account users are sent to, without "@". */
+  supportUsername: (process.env.SUPPORT_USERNAME ?? '').replace(/^@/, ''),
+  /** HTTPS URL of the Mini App; adds an "open wallet" button to bot messages. */
+  webAppUrl: process.env.WEBAPP_URL ?? '',
 };

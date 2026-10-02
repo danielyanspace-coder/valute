@@ -1,8 +1,13 @@
-import type { TgUser } from '../lib/telegram';
+export interface HeaderUser {
+  firstName: string;
+  lastName?: string | null;
+  username?: string | null;
+  photoUrl?: string | null;
+}
 import { IconHeadset, IconHelp } from './icons';
 
 interface Props {
-  user: TgUser | null;
+  user: HeaderUser | null;
   supportUnread: number;
   onSupport: () => void;
   onHelp: () => void;
@@ -10,13 +15,13 @@ interface Props {
 }
 
 export function Header({ user, supportUnread, onSupport, onHelp, onProfile }: Props) {
-  const name = user ? [user.first_name, user.last_name].filter(Boolean).join(' ') : 'Гость';
-  const initials = name.slice(0, 1).toUpperCase();
+  const name = user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : '';
+  const initials = name.slice(0, 1).toUpperCase() || '·';
   return (
     <header className="header">
       <button className="header-user" onClick={onProfile}>
         <div className="avatar">
-          {user?.photo_url ? <img src={user.photo_url} alt="" /> : <span>{initials}</span>}
+          {user?.photoUrl ? <img src={user.photoUrl} alt="" /> : <span>{initials}</span>}
           <i className="online-dot" />
         </div>
         <div className="header-names">

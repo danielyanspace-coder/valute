@@ -98,7 +98,7 @@ export function QrScannerOverlay({ onResult, onClose }: Props) {
       </div>
       {IS_DEMO && (
         <div className="scanner-demo">
-          <span>Демо — нажмите пример:</span>
+          <span>Демо: нажмите на пример</span>
           <div>
             {DEMO_SAMPLES.map((d) => (
               <button key={d.label} className="scanner-chip" onClick={() => finish(d.text)}>{d.label}</button>

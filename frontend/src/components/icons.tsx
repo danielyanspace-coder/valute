@@ -72,3 +72,27 @@ export const LogoX = ({ size = 36 }: { size?: number }) => (
     <path d="M4 37c4-6 7-9 9-11l2.5 3.5C12 32 8 35 4 37Z" fill="url(#lx-b)" />
   </svg>
 );
+export const IconChevronLeft = (p: P) => (<svg {...base(p)}><path d="m15 6-6 6 6 6" /></svg>);
+export const IconCard = (p: P) => (
+  <svg {...base(p)}><rect x="2.5" y="5" width="19" height="14" rx="2.5" /><path d="M2.5 10h19M6.5 15h4" /></svg>
+);
+export const IconBank = (p: P) => (
+  <svg {...base(p)}><path d="M3 10 12 4l9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18" /></svg>
+);
+export const IconWallet = (p: P) => (
+  <svg {...base(p)}><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v4" /><rect x="3.5" y="7.5" width="17" height="12" rx="2.5" /><path d="M16 13.5h.01" /></svg>
+);
+export const IconPhone = (p: P) => (
+  <svg {...base(p)}><rect x="7" y="2.5" width="10" height="19" rx="2.5" /><path d="M11 18.5h2" /></svg>
+);
+export const IconSearch = (p: P) => (<svg {...base(p)}><circle cx="11" cy="11" r="6.5" /><path d="m20 20-4.2-4.2" /></svg>);
+export const IconCheck = (p: P) => (<svg {...base(p)}><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>);
+export const IconClock = (p: P) => (<svg {...base(p)}><circle cx="12" cy="12" r="9" /><path d="M12 7.5V12l3 2" /></svg>);
+export const IconAlert = (p: P) => (<svg {...base(p)}><path d="M12 3 2.5 20h19Z" /><path d="M12 10v4.5M12 17.2v.01" /></svg>);
+export const IconSnow = (p: P) => (
+  <svg {...base(p)}><path d="M12 2.5v19M4 7l16 10M20 7 4 17M9.5 4 12 6l2.5-2M9.5 20l2.5-2 2.5 2" /></svg>
+);
+export const IconChat = (p: P) => (<svg {...base(p)}><path d="M4 5.5h16v11H9l-5 4Z" /></svg>);
+export const IconCopy = (p: P) => (
+  <svg {...base(p)}><rect x="8.5" y="8.5" width="12" height="12" rx="2.5" /><path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5" /></svg>
+);

@@ -29,7 +29,7 @@ export function QrResultSheet({ result, sellRate, onClose, onRescan }: Props) {
       body = (
         <>
           <div className="sbp-badge">СБП</div>
-          <Row k="Тип QR" v={result.qrType === 'dynamic' ? 'Динамический (сумма от продавца)' : result.qrType === 'static' ? 'Статический (сумма вводится)' : '—'} />
+          <Row k="Тип QR" v={result.qrType === 'dynamic' ? 'Динамический (сумма от продавца)' : result.qrType === 'static' ? 'Статический (сумма вводится)' : 'Не указан'} />
           {result.amountRub !== undefined && <Row k="Сумма" v={fmtRub(result.amountRub)} big />}
           {usdtFor(result.amountRub) && <Row k="Спишется" v={`≈ ${usdtFor(result.amountRub)}`} />}
           <Row k="ID платежа" v={result.id} mono />

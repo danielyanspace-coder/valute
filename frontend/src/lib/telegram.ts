@@ -23,6 +23,8 @@ interface TgWebApp {
   showScanQrPopup(params: { text?: string }, cb?: (text: string) => boolean | void): void;
   closeScanQrPopup(): void;
   openLink(url: string): void;
+  openTelegramLink(url: string): void;
+  showConfirm?(message: string, cb: (ok: boolean) => void): void;
   HapticFeedback: {
     impactOccurred(style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft'): void;
     notificationOccurred(type: 'error' | 'success' | 'warning'): void;
@@ -62,4 +64,11 @@ export function hapticNotify(type: 'error' | 'success' | 'warning'): void {
 
 export function canUseNativeQr(): boolean {
   return !!tg && tg.isVersionAtLeast('6.4');
+}
+
+/** Opens a Telegram chat (support) inside Telegram, or in a new tab elsewhere. */
+export function openTelegramChat(username: string): void {
+  const url = `https://t.me/${username}`;
+  if (tg?.isVersionAtLeast('6.1')) tg.openTelegramLink(url);
+  else window.open(url, '_blank', 'noopener');
 }

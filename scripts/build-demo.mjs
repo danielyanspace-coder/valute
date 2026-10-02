@@ -3,7 +3,7 @@
 //   npm run build -w backend && node scripts/build-demo.mjs
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { RateService } from '../backend/dist/rates/rateService.js';
+import { RateService } from '../backend/dist/backend/src/rates/rateService.js';
 
 const rates = new RateService({
   buyMarkupPercent: Number(process.env.RATE_BUY_MARKUP_PERCENT ?? 5),

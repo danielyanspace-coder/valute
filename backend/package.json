@@ -3,10 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --disable-warning=ExperimentalWarning src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
-    "test": "vitest run",
+    "start": "node --disable-warning=ExperimentalWarning dist/backend/src/index.js",
+    "test": "vitest run --root .. backend shared",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
