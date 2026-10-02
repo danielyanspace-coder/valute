@@ -2,7 +2,10 @@ import { buildApp } from './app.js';
 import { config } from './config.js';
 import { RateService } from './rates/rateService.js';
 
-const rates = new RateService(config.rateMarkupPercent);
+const rates = new RateService({
+  buyMarkupPercent: config.rateBuyMarkupPercent,
+  sellDiscountPercent: config.rateSellDiscountPercent,
+});
 const app = buildApp({
   rates,
   telegramBotToken: config.telegramBotToken,

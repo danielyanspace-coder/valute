@@ -366,3 +366,11 @@ button.card:active { transform: scale(0.98); border-color: var(--border-strong);
   .balance-amount { font-size: 32px; }
   .balance-plastic { opacity: 0.5; }
 }
+
+.rate-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.rate-tile {
+  display: flex; flex-direction: column; gap: 4px; padding: 12px 14px;
+  border-radius: 14px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border);
+  font-size: 13px;
+}
+.rate-tile b { font-size: 19px; }

@@ -95,7 +95,7 @@ export function App() {
 
       <RateSheet rate={rate} open={rateOpen} onClose={() => setRateOpen(false)} />
       {scannerOpen && <QrScannerOverlay onResult={handleScanned} onClose={() => setScannerOpen(false)} />}
-      <QrResultSheet result={qrResult} walletRate={rate?.walletRate ?? null} onClose={() => setQrResult(null)} onRescan={startScan} />
+      <QrResultSheet result={qrResult} sellRate={rate?.sellRate ?? null} onClose={() => setQrResult(null)} onRescan={startScan} />
       <Sheet open={!!soon} onClose={() => setSoon(null)} title={soon ?? ''}>
         <p className="muted">Раздел в разработке — подключим на следующих шагах.</p>
       </Sheet>

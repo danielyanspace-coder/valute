@@ -22,9 +22,9 @@ export function buildApp(deps: AppDeps) {
   app.get('/api/rate', async (_req, reply) => {
     const rate = deps.rates.getWalletRate();
     if (!rate) return reply.code(503).send({ error: 'rate_unavailable' });
-    // The exchange source and markup are internal — clients only see the wallet price.
-    const { exchangeRate: _exchangeRate, markupPercent: _markupPercent, ...publicRate } = rate;
-    return publicRate;
+    // The exchange source and margins are internal — clients only see wallet prices.
+    const { pair, buyRate, sellRate, change24hPercent, history, updatedAt } = rate;
+    return { pair, buyRate, sellRate, change24hPercent, history, updatedAt };
   });
 
   app.get('/api/market', async () => ({ coins: deps.rates.getMarket() }));

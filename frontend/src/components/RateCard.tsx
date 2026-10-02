@@ -22,7 +22,7 @@ export function RateCard({ rate, error, onOpen }: { rate: WalletRate | null; err
         <div className="rate-value">
           {rate ? (
             <>
-              <span className="rate-big">{rub.format(rate.walletRate)} ₽</span>
+              <span className="rate-big">{rub.format(rate.buyRate)} ₽</span>
               <span className={`rate-change ${up ? 'up' : 'down'}`}>
                 <span>{up ? '▲' : '▼'} {fmtPct(rate.change24hPercent)}</span>
                 <span className="muted">за 24ч</span>

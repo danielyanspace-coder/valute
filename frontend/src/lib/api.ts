@@ -7,7 +7,10 @@ export interface RatePoint {
 
 export interface WalletRate {
   pair: 'USDT/RUB';
-  walletRate: number;
+  /** RUB per 1 USDT when buying — shown on the home screen. */
+  buyRate: number;
+  /** RUB per 1 USDT when paying by SBP from the USDT balance. */
+  sellRate: number;
   change24hPercent: number;
   history: RatePoint[];
   updatedAt: number;

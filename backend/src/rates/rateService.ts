@@ -5,13 +5,23 @@ export interface RatePoint {
   v: number;
 }
 
-export interface WalletRate {
+export interface RateMargins {
+  /** Added to Rapira ask when the user buys USDT (deposit, balance display). */
+  buyMarkupPercent: number;
+  /** Taken off Rapira bid when the user spends USDT for rubles (SBP payments). */
+  sellDiscountPercent: number;
+}
+
+export interface WalletRate extends RateMargins {
   pair: 'USDT/RUB';
   /** Rapira ask price — what it costs to buy 1 USDT on the exchange. */
-  exchangeRate: number;
-  markupPercent: number;
-  /** Price of 1 USDT in RUB inside the wallet: exchangeRate * (1 + markup). */
-  walletRate: number;
+  exchangeAsk: number;
+  /** Rapira bid price — what the exchange pays for 1 USDT. */
+  exchangeBid: number;
+  /** RUB per 1 USDT when the user buys: ask * (1 + buyMarkup). Shown on the home screen. */
+  buyRate: number;
+  /** RUB per 1 USDT when the user pays in rubles: bid * (1 - sellDiscount). */
+  sellRate: number;
   change24hPercent: number;
   history: RatePoint[];
   updatedAt: number;
@@ -31,6 +41,10 @@ export function applyMarkup(price: number, markupPercent: number): number {
   return round2(price * (1 + markupPercent / 100));
 }
 
+export function applyDiscount(price: number, discountPercent: number): number {
+  return round2(price * (1 - discountPercent / 100));
+}
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -42,7 +56,7 @@ export class RateService {
   private timer: NodeJS.Timeout | undefined;
 
   constructor(
-    private readonly markupPercent: number,
+    private readonly margins: RateMargins,
     private readonly fetchTickers: () => Promise<RapiraTicker[]> = () => fetchRapiraTickers(),
     private readonly now: () => number = Date.now,
   ) {}
@@ -53,7 +67,7 @@ export class RateService {
     this.updatedAt = this.now();
 
     const usdt = this.tickers.get('USDT/RUB');
-    if (usdt) this.recordHistory(applyMarkup(usdt.askPrice, this.markupPercent));
+    if (usdt) this.recordHistory(applyMarkup(usdt.askPrice, this.margins.buyMarkupPercent));
   }
 
   start(intervalMs: number, onError: (err: unknown) => void): Promise<void> {
@@ -72,9 +86,11 @@ export class RateService {
     if (!usdt) return null;
     return {
       pair: 'USDT/RUB',
-      exchangeRate: usdt.askPrice,
-      markupPercent: this.markupPercent,
-      walletRate: applyMarkup(usdt.askPrice, this.markupPercent),
+      ...this.margins,
+      exchangeAsk: usdt.askPrice,
+      exchangeBid: usdt.bidPrice,
+      buyRate: applyMarkup(usdt.askPrice, this.margins.buyMarkupPercent),
+      sellRate: applyDiscount(usdt.bidPrice, this.margins.sellDiscountPercent),
       change24hPercent: round2(usdt.chg * 100),
       history: this.historyWithSeed(usdt),
       updatedAt: this.updatedAt,
@@ -110,7 +126,7 @@ export class RateService {
    */
   private historyWithSeed(usdt: RapiraTicker): RatePoint[] {
     if (this.history.length >= 12) return [...this.history];
-    const m = (p: number) => applyMarkup(p, this.markupPercent);
+    const m = (p: number) => applyMarkup(p, this.margins.buyMarkupPercent);
     const now = this.now();
     const day = HISTORY_WINDOW_MS;
     const seed: RatePoint[] = [

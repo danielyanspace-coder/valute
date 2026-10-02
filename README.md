@@ -11,7 +11,7 @@ frontend/  React + Vite: главный экран, сканер QR
 
 ```bash
 npm install
-cp .env.example .env          # TELEGRAM_BOT_TOKEN, RATE_MARKUP_PERCENT
+cp .env.example .env          # TELEGRAM_BOT_TOKEN, RATE_BUY_MARKUP_PERCENT, RATE_SELL_DISCOUNT_PERCENT
 npm run dev                   # backend :8080, frontend :5173 (проксирует /api)
 ```
 
@@ -23,6 +23,6 @@ npm run dev                   # backend :8080, frontend :5173 (проксиру�
 
 | Метод | Ответ |
 |---|---|
-| `GET /api/rate` | `{ walletRate, change24hPercent, history[], updatedAt }`: 1 USDT в ₽ (ask Rapira + наценка) |
+| `GET /api/rate` | `{ buyRate, sellRate, change24hPercent, history[], updatedAt }`: покупка (ask Rapira + 5%) и оплата СБП (bid Rapira − 5%), ₽ за 1 USDT |
 | `GET /api/market` | цены BTC/ETH/USDT/SOL в USD |
 | `GET /api/me` | пользователь Telegram; заголовок `Authorization: tma <initData>` |

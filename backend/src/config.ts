@@ -15,7 +15,8 @@ function num(name: string, fallback: number): number {
 export const config = {
   port: num('PORT', 8080),
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? '',
-  rateMarkupPercent: num('RATE_MARKUP_PERCENT', 5),
+  rateBuyMarkupPercent: num('RATE_BUY_MARKUP_PERCENT', 5),
+  rateSellDiscountPercent: num('RATE_SELL_DISCOUNT_PERCENT', 5),
   ratePollMs: num('RATE_POLL_MS', 15_000),
   allowDevAuth: process.env.ALLOW_DEV_AUTH === 'true',
 };
