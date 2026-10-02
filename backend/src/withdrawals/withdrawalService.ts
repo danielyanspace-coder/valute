@@ -13,6 +13,7 @@ import {
   cardBrand,
   formatRuPhone,
   maskCard,
+  isFinal,
   nextStatus,
   normalizeRuPhone,
   STATUS_LABEL,
@@ -53,7 +54,7 @@ export interface WithdrawalRow {
   amount_rub: number;
   amount_micro: number;
   rate: number;
-  exchange_bid: number | null;
+  exchange_rate: number | null;
   balance_before_micro: number;
   status: WithdrawalStatus;
   created_at: number;
@@ -69,8 +70,10 @@ export interface WithdrawalRow {
 }
 
 export interface RateQuote {
-  sellRate: number;
-  exchangeBid: number;
+  /** RUB per 1 USDT applied to this withdrawal. */
+  rate: number;
+  /** Rapira price the rate was derived from, kept for audit. */
+  exchangeRate: number;
 }
 
 export interface RequestContext {
@@ -93,6 +96,7 @@ export class WithdrawalService {
 
   create(user: UserRow, req: CreateWithdrawalRequest, quote: RateQuote | null, ctx: RequestContext = {}): WithdrawalRow {
     if (user.blocked) throw new AppError(403, 'blocked', 'Вывод недоступен. Свяжитесь с поддержкой');
+    this.assertNotLocked(user.id);
     if (req.acceptedTerms !== true) throw new AppError(400, 'terms', 'Нужно принять условия вывода');
     if (!req.requestId || req.requestId.length > 64) throw new AppError(400, 'request_id', 'Некорректный запрос');
 
@@ -124,7 +128,7 @@ export class WithdrawalService {
       throw new AppError(400, 'method', 'Выберите способ вывода');
     }
 
-    const amountMicro = usdtMicroForRub(req.amountRub, quote.sellRate);
+    const amountMicro = usdtMicroForRub(req.amountRub, quote.rate);
 
     return transaction(this.db, () => {
       const { availableMicro } = this.ledger.balances(user.id);
@@ -134,12 +138,12 @@ export class WithdrawalService {
       const { lastInsertRowid } = this.db
         .prepare(
           `INSERT INTO withdrawals (user_id, request_id, method, phone, bank_id, bank_name, card_number, card_brand,
-             amount_rub, amount_micro, rate, exchange_bid, balance_before_micro, status, created_at, client_ip, user_agent, platform)
+             amount_rub, amount_micro, rate, exchange_rate, balance_before_micro, status, created_at, client_ip, user_agent, platform)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
         )
         .run(
           user.id, req.requestId, req.method, phone, bank?.id ?? null, bank?.name ?? null, card,
-          card ? cardBrand(card) : null, req.amountRub, amountMicro, quote.sellRate, quote.exchangeBid,
+          card ? cardBrand(card) : null, req.amountRub, amountMicro, quote.rate, quote.exchangeRate,
           availableMicro, now, ctx.ip ?? null, ctx.userAgent?.slice(0, 300) ?? null, req.platform?.slice(0, 40) ?? null,
         );
       const id = Number(lastInsertRowid);
@@ -147,9 +151,27 @@ export class WithdrawalService {
         { userId: user.id, bucket: 'available', amountMicro: -amountMicro, kind: 'withdrawal_freeze', refType: 'withdrawal', refId: id },
         { userId: user.id, bucket: 'frozen', amountMicro, kind: 'withdrawal_freeze', refType: 'withdrawal', refId: id },
       ]);
-      this.event(id, 'user', 'created', { amountRub: req.amountRub, amountMicro, rate: quote.sellRate });
+      this.event(id, 'user', 'created', { amountRub: req.amountRub, amountMicro, rate: quote.rate });
       return this.row(id)!;
     });
+  }
+
+  /** Active "contact support" request: the wallet stays locked until the deal is completed or rejected. */
+  contactLock(userId: number): { withdrawalId: number; amountRub: number } | null {
+    const row = this.db
+      .prepare(
+        `SELECT id, amount_rub FROM withdrawals
+         WHERE user_id = ? AND contact_requested_at IS NOT NULL AND status IN ('pending', 'sent', 'disputed')
+         ORDER BY id DESC LIMIT 1`,
+      )
+      .get(userId) as { id: number; amount_rub: number } | undefined;
+    return row ? { withdrawalId: row.id, amountRub: row.amount_rub } : null;
+  }
+
+  assertNotLocked(userId: number): void {
+    if (this.contactLock(userId)) {
+      throw new AppError(423, 'locked', 'Кошелёк временно недоступен. Свяжитесь с поддержкой, чтобы завершить заявку');
+    }
   }
 
   listForUser(userId: number, limit = 50): WithdrawalRow[] {
@@ -217,6 +239,7 @@ export class WithdrawalService {
   requestContact(id: number): WithdrawalRow {
     return transaction(this.db, () => {
       const w = this.mustRow(id);
+      if (isFinal(w.status)) throw new AppError(409, 'bad_status', 'Заявка уже завершена');
       this.db.prepare('UPDATE withdrawals SET contact_requested_at = ? WHERE id = ?').run(this.now(), id);
       this.event(id, 'admin', 'contact_requested', {});
       this.notifications.notify(this.users.get(w.user_id)!, 'contact_support', w);
@@ -298,7 +321,7 @@ export class WithdrawalService {
       cardNumber: w.card_number,
       cardBrand: w.card_brand ? CARD_BRAND_LABEL[w.card_brand] : null,
       rate: w.rate,
-      exchangeBid: w.exchange_bid,
+      exchangeRate: w.exchange_rate,
       balanceBeforeMicro: w.balance_before_micro,
       sentAt: w.sent_at,
       finishedAt: w.finished_at,
@@ -357,7 +380,17 @@ export class WithdrawalService {
         withdrawalsTotal: s.total,
         withdrawalsCompleted: s.completed ?? 0,
         disputes: disputes.n,
+        ...this.transferTotals(userId),
       },
+    };
+  }
+
+  private transferTotals(userId: number) {
+    const q = (sql: string) => (this.db.prepare(sql).get(userId) as { t: number }).t;
+    return {
+      transfersInMicro: q('SELECT COALESCE(SUM(amount_micro), 0) AS t FROM transfers WHERE to_user_id = ?'),
+      transfersOutMicro: q('SELECT COALESCE(SUM(amount_micro), 0) AS t FROM transfers WHERE from_user_id = ?'),
+      activeChecksMicro: q(`SELECT COALESCE(SUM(amount_micro), 0) AS t FROM checks WHERE creator_id = ? AND status = 'active'`),
     };
   }
 

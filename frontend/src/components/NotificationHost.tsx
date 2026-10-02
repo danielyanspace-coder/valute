@@ -1,9 +1,10 @@
 import { useCallback, useState } from 'react';
 import type { NotificationDto } from '../../../shared/api';
 import { api } from '../lib/backend';
-import { hapticNotify, openTelegramChat } from '../lib/telegram';
+import { hapticNotify } from '../lib/telegram';
 import { usePolling } from '../lib/useInterval';
-import { IconChat, IconCheck } from './icons';
+import { shortUsdt } from '../../../shared/transfers';
+import { IconCheck, IconPlus } from './icons';
 import { Sheet } from './Sheet';
 
 interface Props {
@@ -24,9 +25,11 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
     await api.markNotificationsSeen(items.map((n) => n.id)).catch(() => {});
     onAnything();
     // Show the most important one; the rest are reflected in balances and history.
-    const order = ['contact_support', 'confirm_receipt', 'withdrawal_rejected', 'withdrawal_completed'];
+    const order = ['contact_support', 'confirm_receipt', 'withdrawal_rejected', 'transfer_received', 'check_claimed', 'withdrawal_completed'];
     const top = [...items].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))[0];
-    hapticNotify(top.type === 'withdrawal_completed' ? 'success' : 'warning');
+    hapticNotify(['withdrawal_completed', 'transfer_received', 'check_claimed'].includes(top.type) ? 'success' : 'warning');
+    // contact_support: the blocking screen is driven by /api/me (refreshed above), nothing to show here.
+    if (top.type === 'contact_support') return;
     if ((top.type === 'confirm_receipt' || top.type === 'withdrawal_rejected') && top.withdrawalId) {
       onOpenWithdrawal(top.withdrawalId);
     } else {
@@ -39,24 +42,33 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
   if (!modal) return null;
   const close = () => setModal(null);
 
-  if (modal.type === 'contact_support') {
+  if (modal.type === 'transfer_received' && modal.transfer) {
+    const t = modal.transfer;
     return (
       <Sheet open onClose={close} title="">
         <div className="modal-center">
-          <span className="modal-icon warn"><IconChat size={26} /></span>
-          <b>Свяжитесь с поддержкой</b>
+          <span className="modal-icon ok"><IconPlus size={26} /></span>
+          <b>+{shortUsdt(t.amountMicro)} USDT</b>
           <p className="muted">
-            Нам нужно уточнить детали по вашей заявке{modal.withdrawalId ? ` #${modal.withdrawalId}` : ''}. Ваш username в
-            Telegram скрыт, поэтому мы не можем написать первыми.
+            {t.kind === 'check' ? 'Чек от' : 'Перевод от'} {t.counterparty.username ? `@${t.counterparty.username}` : t.counterparty.firstName}
+            {t.comment ? `: «${t.comment}»` : ''}. Средства уже на балансе.
           </p>
-          <div className="sheet-actions">
-            <button className="btn ghost" onClick={close}>Позже</button>
-            {supportUsername && (
-              <button className="btn primary" onClick={() => { openTelegramChat(supportUsername); close(); }}>
-                Написать в поддержку
-              </button>
-            )}
-          </div>
+          <div className="sheet-actions"><button className="btn primary" onClick={close}>Отлично</button></div>
+        </div>
+      </Sheet>
+    );
+  }
+
+  if (modal.type === 'check_claimed' && modal.check) {
+    const c = modal.check;
+    const by = c.claimedBy ? (c.claimedBy.username ? `@${c.claimedBy.username}` : c.claimedBy.firstName) : 'получатель';
+    return (
+      <Sheet open onClose={close} title="">
+        <div className="modal-center">
+          <span className="modal-icon ok"><IconCheck size={26} /></span>
+          <b>Чек активирован</b>
+          <p className="muted">{by} получил {shortUsdt(c.amountMicro)} USDT по вашему чеку.</p>
+          <div className="sheet-actions"><button className="btn primary" onClick={close}>Хорошо</button></div>
         </div>
       </Sheet>
     );

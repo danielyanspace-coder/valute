@@ -1,10 +1,11 @@
 import { useCallback, useState } from 'react';
-import type { MeDto, WithdrawalDto } from '../../shared/api';
+import type { HistoryItem, MeDto } from '../../shared/api';
 import { USDT_MICRO } from '../../shared/payout';
 import { Actions, type ActionId } from './components/Actions';
 import { BalanceCard } from './components/BalanceCard';
 import { BottomNav, type Tab } from './components/BottomNav';
 import { ConfirmBanner } from './components/ConfirmBanner';
+import { ContactLock } from './components/ContactLock';
 import { CryptoList } from './components/CryptoList';
 import { Header } from './components/Header';
 import { HistoryScreen } from './components/HistoryScreen';
@@ -17,6 +18,7 @@ import { RateSheet } from './components/RateSheet';
 import { Sheet } from './components/Sheet';
 import { WithdrawalSheet } from './components/withdraw/WithdrawalSheet';
 import { WithdrawFlow } from './components/withdraw/WithdrawFlow';
+import { TransferFlow } from './components/transfer/TransferFlow';
 import { IS_DEMO, type MarketCoin, type WalletRate } from './lib/api';
 import { api } from './lib/backend';
 import { parseQr, type ParsedQr } from './lib/qr';
@@ -31,12 +33,13 @@ export function App() {
   const [rateError, setRateError] = useState(false);
   const [coins, setCoins] = useState<MarketCoin[]>([]);
   const [me, setMe] = useState<MeDto | null>(null);
-  const [history, setHistory] = useState<WithdrawalDto[]>([]);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [hidden, setHidden] = useState(() => readFlag('hideBalance'));
   const [tab, setTab] = useState<Tab>('home');
   const [rateOpen, setRateOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [openWithdrawal, setOpenWithdrawal] = useState<number | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [qrResult, setQrResult] = useState<ParsedQr | null>(null);
@@ -49,7 +52,7 @@ export function App() {
 
   const refreshAccount = useCallback(() => {
     api.me().then(setMe, () => {});
-    api.withdrawals().then((r) => setHistory(r.items), () => {}).finally(() => setHistoryLoading(false));
+    api.history().then((r) => setHistory(r.items), () => {}).finally(() => setHistoryLoading(false));
   }, []);
   usePolling(refreshAccount, ACCOUNT_REFRESH_MS);
 
@@ -76,7 +79,8 @@ export function App() {
     haptic();
     if (id === 'pay') return startScan();
     if (id === 'withdraw') return setWithdrawOpen(true);
-    setSoon({ deposit: 'Пополнение', transfer: 'Перевод' }[id]);
+    if (id === 'transfer') return setTransferOpen(true);
+    setSoon('Пополнение');
   };
 
   const toggleHidden = () => {
@@ -91,7 +95,7 @@ export function App() {
     setOpenWithdrawal(id);
   }, []);
 
-  const awaiting = history.filter((w) => w.status === 'sent');
+  const awaiting = history.flatMap((h) => (h.type === 'withdrawal' && h.withdrawal.status === 'sent' ? [h.withdrawal] : []));
   const tgUser = tg?.initDataUnsafe.user;
   const headerUser = me
     ? { firstName: me.user.firstName, lastName: me.user.lastName, username: me.user.username, photoUrl: me.user.photoUrl }
@@ -125,7 +129,7 @@ export function App() {
             <Actions onAction={onAction} />
             <RateCard rate={rate} error={rateError} onOpen={() => { haptic(); setRateOpen(true); }} />
             <CryptoList coins={coins} onAll={() => setSoon('Все криптовалюты')} onCoin={(s) => setSoon(s)} />
-            <Promo onOpen={() => setSoon('Переводы')} />
+            <Promo onOpen={() => setTransferOpen(true)} />
             {IS_DEMO && rate && (
               <p className="demo-banner">
                 Демо-версия · курсы Rapira на {new Date(rate.updatedAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
@@ -134,7 +138,9 @@ export function App() {
           </>
         )}
 
-        {tab === 'history' && <HistoryScreen items={history} loading={historyLoading} onOpen={setOpenWithdrawal} />}
+        {tab === 'history' && (
+          <HistoryScreen items={history} loading={historyLoading} onOpenWithdrawal={setOpenWithdrawal} onOpenChecks={() => setTransferOpen(true)} />
+        )}
       </main>
 
       <BottomNav
@@ -156,6 +162,7 @@ export function App() {
         onCreated={refreshAccount}
         onOpenWithdrawal={openW}
       />
+      <TransferFlow open={transferOpen} onClose={() => setTransferOpen(false)} me={me} onChanged={refreshAccount} />
       <WithdrawalSheet
         id={openWithdrawal}
         onClose={() => setOpenWithdrawal(null)}
@@ -164,8 +171,9 @@ export function App() {
         usernameHidden={!!me && !me.user.username}
       />
       <NotificationHost supportUsername={support} onOpenWithdrawal={openW} onAnything={refreshAccount} />
+      {me?.contactLock && <ContactLock lock={me.contactLock} supportUsername={support} />}
       {scannerOpen && <QrScannerOverlay onResult={handleScanned} onClose={() => setScannerOpen(false)} />}
-      <QrResultSheet result={qrResult} sellRate={rate?.sellRate ?? null} onClose={() => setQrResult(null)} onRescan={startScan} />
+      <QrResultSheet result={qrResult} qrPayRate={rate?.qrPayRate ?? null} onClose={() => setQrResult(null)} onRescan={startScan} />
       <Sheet open={!!soon} onClose={() => setSoon(null)} title={soon ?? ''}>
         <p className="muted">Раздел в разработке, подключим на следующих шагах.</p>
       </Sheet>

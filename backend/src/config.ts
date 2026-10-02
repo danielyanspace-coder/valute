@@ -19,8 +19,8 @@ function num(name: string, fallback: number): number {
 export const config = {
   port: num('PORT', 8080),
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? '',
-  rateBuyMarkupPercent: num('RATE_BUY_MARKUP_PERCENT', 5),
-  rateSellDiscountPercent: num('RATE_SELL_DISCOUNT_PERCENT', 5),
+  rateWalletMarkupPercent: num('RATE_WALLET_MARKUP_PERCENT', 5),
+  rateQrPayDiscountPercent: num('RATE_QR_PAY_DISCOUNT_PERCENT', 5),
   ratePollMs: num('RATE_POLL_MS', 15_000),
   allowDevAuth: process.env.ALLOW_DEV_AUTH === 'true',
   /** Password for the admin panel (/admin) and /api/admin/*. Empty = admin off. */
@@ -35,4 +35,6 @@ export const config = {
   supportUsername: (process.env.SUPPORT_USERNAME ?? '').replace(/^@/, ''),
   /** HTTPS URL of the Mini App; adds an "open wallet" button to bot messages. */
   webAppUrl: process.env.WEBAPP_URL ?? '',
+  /** Used for check links until the bot reports its own username via getMe. */
+  botUsername: (process.env.BOT_USERNAME ?? '').replace(/^@/, ''),
 };

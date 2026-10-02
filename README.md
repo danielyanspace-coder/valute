@@ -11,7 +11,7 @@ frontend/  React + Vite: главный экран, сканер QR
 
 ```bash
 npm install
-cp .env.example .env          # TELEGRAM_BOT_TOKEN, RATE_BUY_MARKUP_PERCENT, RATE_SELL_DISCOUNT_PERCENT
+cp .env.example .env          # TELEGRAM_BOT_TOKEN, WEBAPP_URL, ADMIN_TOKEN, курсы
 npm run dev                   # backend :8080, frontend :5173 (проксирует /api)
 ```
 
@@ -25,7 +25,7 @@ npm run dev                   # backend :8080, frontend :5173 (проксиру�
 
 | Метод | Ответ |
 |---|---|
-| `GET /api/rate` | `{ buyRate, sellRate, change24hPercent, history[], updatedAt }`: покупка (ask Rapira + 5%) и оплата СБП (bid Rapira − 5%), ₽ за 1 USDT |
+| `GET /api/rate` | `{ walletRate, qrPayRate, change24hPercent, history[], updatedAt }`: курс кошелька (ask Rapira + 5%, по нему же вывод) и курс оплаты QR СБП (bid Rapira - 5%), ₽ за 1 USDT |
 | `GET /api/market` | цены BTC/ETH/USDT/SOL в USD |
 | `GET /api/me` | пользователь Telegram; заголовок `Authorization: tma <initData>` |
 | `GET /api/admin/aml/check?chain=TRON&address=…` | бесплатная AML-проверка адреса; `Authorization: Bearer $ADMIN_TOKEN` |
@@ -33,3 +33,7 @@ npm run dev                   # backend :8080, frontend :5173 (проксиру�
 | `POST /api/withdrawals/:id/confirm` · `/dispute` | «Деньги пришли» / «Деньги не пришли» |
 | `GET /api/notifications` | уведомления для окон в приложении |
 | `/admin` | админка выводов, пароль `ADMIN_TOKEN` |
+| `POST /api/transfers` | перевод по username, без комиссии |
+| `POST /api/checks` · `GET /api/checks` · `POST /api/checks/:id/cancel` | чеки |
+| `GET /api/history` | история: выводы, переводы, чеки |
+| `GET /api/checks/image/:amount.jpg` | картинка чека для бота |

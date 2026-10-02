@@ -210,7 +210,7 @@ function Detail({ api, id, onBack, onChanged }: { api: AdminApi; id: number; onB
         <div className="adm-d-amount">{fmtRub0(d.amountRub)}</div>
         <div className="adm-muted">
           {fmtMicroExact(d.amountMicro)} по курсу {fmtRub(d.rate)}
-          {d.exchangeBid ? ` · Rapira bid ${fmtRub(d.exchangeBid)}` : ''}
+          {d.exchangeRate ? ` · Rapira ${fmtRub(d.exchangeRate)}` : ''}
         </div>
         <div className="adm-muted">Создана {fmtDateTime(d.createdAt)} ({fmtAgo(d.createdAt)})</div>
       </div>
@@ -233,6 +233,12 @@ function Detail({ api, id, onBack, onChanged }: { api: AdminApi; id: number; onB
               </>
             )}
           </div>
+        </div>
+      )}
+      {d.contactRequestedAt && !isFinal(d.status) && (
+        <div className="adm-banner info">
+          Пользователь видит окно «Свяжитесь с поддержкой» с {fmtTime(d.contactRequestedAt)}. Кошелёк у него заблокирован, пока вы не
+          подтвердите или не отклоните заявку.
         </div>
       )}
       {d.status === 'rejected' && <div className="adm-banner">Отклонена: {d.rejectReason}</div>}
@@ -328,6 +334,8 @@ function Detail({ api, id, onBack, onChanged }: { api: AdminApi; id: number; onB
           <Row k="Всего пополнено" v={fmtMicro(u.stats.depositedMicro)} />
           <Row k="Всего выведено" v={`${fmtRub0(u.stats.withdrawnRub)} · ${fmtMicro(u.stats.withdrawnMicro)}`} />
           <Row k="Заявок" v={`${u.stats.withdrawalsTotal}, выполнено ${u.stats.withdrawalsCompleted}, споров ${u.stats.disputes}`} />
+          <Row k="Переводы" v={`получено ${fmtMicro(u.stats.transfersInMicro)}, отправлено ${fmtMicro(u.stats.transfersOutMicro)}`} />
+          <Row k="В активных чеках" v={fmtMicro(u.stats.activeChecksMicro)} />
           <Adjust api={api} userId={u.id} onDone={load} />
         </Card>
 

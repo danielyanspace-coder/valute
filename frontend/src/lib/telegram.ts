@@ -24,6 +24,7 @@ interface TgWebApp {
   closeScanQrPopup(): void;
   openLink(url: string): void;
   openTelegramLink(url: string): void;
+  switchInlineQuery?(query: string, chooseChatTypes?: ('users' | 'bots' | 'groups' | 'channels')[]): void;
   showConfirm?(message: string, cb: (ok: boolean) => void): void;
   HapticFeedback: {
     impactOccurred(style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft'): void;
@@ -71,4 +72,23 @@ export function openTelegramChat(username: string): void {
   const url = `https://t.me/${username}`;
   if (tg?.isVersionAtLeast('6.1')) tg.openTelegramLink(url);
   else window.open(url, '_blank', 'noopener');
+}
+
+/**
+ * Opens Telegram's chat picker with "@bot <query>" prefilled, so the user posts a check to any chat.
+ * Returns false outside Telegram (or on old clients) so the caller can fall back to copying a link.
+ */
+export function shareInline(query: string): boolean {
+  if (!tg?.isVersionAtLeast('6.7') || !tg.switchInlineQuery) return false;
+  tg.switchInlineQuery(query, ['users', 'groups', 'channels']);
+  return true;
+}
+
+export async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
 }

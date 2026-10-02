@@ -12,7 +12,9 @@
   "dependencies": {
     "@fastify/cors": "^11.3.0",
     "@fastify/static": "^10.1.5",
-    "fastify": "^5.12.5"
+    "@resvg/resvg-js": "^2.6.2",
+    "fastify": "^5.12.5",
+    "jpeg-js": "^0.4.4"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

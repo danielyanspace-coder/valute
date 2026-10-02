@@ -14,7 +14,10 @@ export function RateCard({ rate, error, onOpen }: { rate: WalletRate | null; err
         <CoinIcon symbol="USDT" size={38} />
         <div className="rate-title">
           <span className="muted">Актуальный курс кошелька</span>
-          <b>USDT</b>
+          <span className="rate-title-row">
+            <b>USDT</b>
+            <span className="rate-pill">На вывод</span>
+          </span>
         </div>
         <IconChevronRight className="rate-chevron" size={16} />
       </div>
@@ -22,7 +25,7 @@ export function RateCard({ rate, error, onOpen }: { rate: WalletRate | null; err
         <div className="rate-value">
           {rate ? (
             <>
-              <span className="rate-big">{rub.format(rate.buyRate)} ₽</span>
+              <span className="rate-big">{rub.format(rate.walletRate)} ₽</span>
               <span className={`rate-change ${up ? 'up' : 'down'}`}>
                 <span>{up ? '▲' : '▼'} {fmtPct(rate.change24hPercent)}</span>
                 <span className="muted">за 24ч</span>

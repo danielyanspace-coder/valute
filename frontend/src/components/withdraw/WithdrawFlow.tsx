@@ -80,18 +80,18 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
     setRequestId(newRequestId());
   }, [open]);
 
-  const sellRate = rate?.sellRate ?? 0;
+  const payoutRate = rate?.walletRate ?? 0;
   const available = me?.availableMicro ?? 0;
-  const maxRub = sellRate ? maxPayoutRub(available, sellRate) : 0;
+  const maxRub = payoutRate ? maxPayoutRub(available, payoutRate) : 0;
   const amountRub = Number(amount) || 0;
-  const amountMicro = sellRate && amountRub ? usdtMicroForRub(amountRub, sellRate) : 0;
+  const amountMicro = payoutRate && amountRub ? usdtMicroForRub(amountRub, payoutRate) : 0;
   const bank = bankId ? findBank(bankId) : undefined;
 
   const amountError = amount ? validatePayoutRub(amountRub, maxRub) : touched ? 'Введите сумму' : null;
   const phoneError = validateRuPhone(phone);
   const cardError = validateCard(card);
   const destinationOk = method === 'sbp' ? !phoneError && !!bank : !cardError;
-  const canContinue = destinationOk && !validatePayoutRub(amountRub, maxRub) && !!sellRate;
+  const canContinue = destinationOk && !validatePayoutRub(amountRub, maxRub) && !!payoutRate;
 
   const go = (s: Step) => {
     haptic();
@@ -221,7 +221,7 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
             error={amountError}
             maxRub={maxRub}
             amountMicro={amountMicro}
-            sellRate={sellRate}
+            payoutRate={payoutRate}
           />
           <button className="btn primary block" disabled={!canContinue} onClick={() => go('terms')}>
             Вывести
@@ -266,7 +266,7 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
             error={amountError}
             maxRub={maxRub}
             amountMicro={amountMicro}
-            sellRate={sellRate}
+            payoutRate={payoutRate}
           />
           <button className="btn primary block" disabled={!canContinue} onClick={() => go('terms')}>
             Вывести
@@ -282,7 +282,7 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
           <div className="summary">
             <div className="summary-amount">{fmtRub0(amountRub)}</div>
             <div className="muted">{destinationText}</div>
-            <div className="summary-freeze">Спишется {fmtMicro(amountMicro)} по курсу {fmtRub(sellRate)}</div>
+            <div className="summary-freeze">Спишется {fmtMicro(amountMicro)} по курсу {fmtRub(payoutRate)}</div>
           </div>
           <div className="rules">
             <Rule icon={<IconClock size={18} />} title="Подтвердите получение за 10 минут">
@@ -374,7 +374,7 @@ function AmountField(props: {
   error: string | null;
   maxRub: number;
   amountMicro: number;
-  sellRate: number;
+  payoutRate: number;
 }) {
   const { amount, setAmount, maxRub } = props;
   const presets = useMemo(() => [1000, 5000, 10000].filter((v) => v <= maxRub), [maxRub]);
@@ -400,7 +400,7 @@ function AmountField(props: {
       </div>
       <div className="amount-meta">
         <span>Доступно {fmtRub0(maxRub)}</span>
-        <span>{props.amountMicro ? `Спишется ${fmtMicro(props.amountMicro)}` : props.sellRate ? `1 USDT = ${fmtRub(props.sellRate)}` : ''}</span>
+        <span>{props.amountMicro ? `Спишется ${fmtMicro(props.amountMicro)}` : props.payoutRate ? `1 USDT = ${fmtRub(props.payoutRate)}` : ''}</span>
       </div>
       <span className="field-hint">Сумма кратна 100 ₽, минимум {rub.format(MIN_PAYOUT_RUB)} ₽</span>
     </Field>

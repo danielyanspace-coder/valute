@@ -3,7 +3,13 @@ import type {
   AdminUserDto,
   AdminWithdrawalDto,
   AdminWithdrawalListItem,
+  CheckDto,
+  CreateCheckRequest,
   CreateWithdrawalRequest,
+  HistoryItem,
+  PersonDto,
+  SendTransferRequest,
+  TransferDto,
   MeDto,
   NotificationDto,
   WithdrawalDto,
@@ -18,10 +24,10 @@ export interface RatePoint {
 
 export interface WalletRate {
   pair: 'USDT/RUB';
-  /** RUB per 1 USDT when buying, shown on the home screen. */
-  buyRate: number;
-  /** RUB per 1 USDT when the user spends USDT for rubles (SBP payments, card payouts). */
-  sellRate: number;
+  /** The wallet's current rate: shown on the home screen and used for ruble withdrawals. */
+  walletRate: number;
+  /** Rate for paying SBP QR codes from the balance. */
+  qrPayRate: number;
   change24hPercent: number;
   history: RatePoint[];
   updatedAt: number;
@@ -54,6 +60,14 @@ export interface Api {
   disputeWithdrawal(id: number): Promise<WithdrawalDto>;
   notifications(): Promise<{ items: NotificationDto[] }>;
   markNotificationsSeen(ids: number[]): Promise<unknown>;
+  history(): Promise<{ items: HistoryItem[] }>;
+  lookupUser(username: string): Promise<PersonDto>;
+  sendTransfer(req: SendTransferRequest): Promise<TransferDto>;
+  checks(): Promise<{ items: CheckDto[] }>;
+  createCheck(req: CreateCheckRequest): Promise<CheckDto>;
+  cancelCheck(id: number): Promise<CheckDto>;
+  /** Demo only: pretend a friend pressed "Получить" on the check. */
+  demoClaimCheck?(code: string): Promise<unknown>;
 }
 
 export interface AdminApi {
@@ -93,6 +107,12 @@ export const httpApi: Api = {
   disputeWithdrawal: (id) => request('POST', `/api/withdrawals/${id}/dispute`, userAuth(), {}),
   notifications: () => request('GET', '/api/notifications', userAuth()),
   markNotificationsSeen: (ids) => request('POST', '/api/notifications/seen', userAuth(), { ids }),
+  history: () => request('GET', '/api/history', userAuth()),
+  lookupUser: (username) => request('GET', `/api/users/lookup?username=${encodeURIComponent(username)}`, userAuth()),
+  sendTransfer: (req) => request('POST', '/api/transfers', userAuth(), req),
+  checks: () => request('GET', '/api/checks', userAuth()),
+  createCheck: (req) => request('POST', '/api/checks', userAuth(), req),
+  cancelCheck: (id) => request('POST', `/api/checks/${id}/cancel`, userAuth(), {}),
 };
 
 export function httpAdminApi(token: string): AdminApi {

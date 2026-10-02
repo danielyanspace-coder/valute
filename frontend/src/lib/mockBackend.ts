@@ -6,7 +6,11 @@ import type {
   AdminUserDto,
   AdminWithdrawalDto,
   AdminWithdrawalListItem,
+  CheckDto,
   CreateWithdrawalRequest,
+  HistoryItem,
+  PersonDto,
+  TransferDto,
   MeDto,
   NotificationDto,
   NotificationType,
@@ -19,6 +23,7 @@ import {
   USDT_MICRO,
   cardBrand,
   formatRuPhone,
+  isFinal,
   maskCard,
   nextStatus,
   normalizeRuPhone,
@@ -30,6 +35,7 @@ import {
   type WithdrawalStatus,
 } from '../../../shared/payout';
 import { findBank } from '../../../shared/sbpBanks';
+import { checkLink, cleanComment, isValidUsername, normalizeUsername, parseUsdt } from '../../../shared/transfers';
 import { ApiError, type AdminApi, type Api, type MarketCoin, type WalletRate } from './api';
 
 interface MockUser {
@@ -61,7 +67,7 @@ interface MockWithdrawal {
   amountRub: number;
   amountMicro: number;
   rate: number;
-  exchangeBid: number;
+  exchangeRate: number;
   balanceBeforeMicro: number;
   status: WithdrawalStatus;
   createdAt: number;
@@ -104,9 +110,21 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       availableMicro: 31_500_000, frozenMicro: 0, depositedMicro: 220 * USDT_MICRO,
       addresses: [{ chain: 'TRON', address: 'TKr8wqZ3vHcN1mP6sYb2XgD9fJ4tLa7uEe', createdAt: t0 - 4 * DAY }],
     },
+    {
+      id: 3, telegramId: 7_114_902_518, username: 'masha_k', firstName: 'Маша', lastName: null, languageCode: 'ru',
+      createdAt: t0 - 11 * DAY, lastSeenAt: t0 - 3 * MIN, blocked: false, missedConfirmations: 0,
+      availableMicro: 74 * USDT_MICRO, frozenMicro: 0, depositedMicro: 120 * USDT_MICRO, addresses: [],
+    },
   ];
+  interface MockCheck { id: number; code: string; creatorId: number; amountMicro: number; comment: string | null; status: CheckDto['status']; createdAt: number; claimedBy: number | null; claimedAt: number | null }
+  interface MockTransfer { id: number; from: number; to: number; amountMicro: number; kind: 'direct' | 'check'; comment: string | null; requestId: string | null; createdAt: number }
+  const checks: MockCheck[] = [];
+  const transfers: MockTransfer[] = [];
+  const BOT = 'cryptoix_bot';
   const withdrawals: MockWithdrawal[] = [];
   const notifications: (NotificationDto & { userId: number; seen: boolean })[] = [];
+  let transferId = 1;
+  let checkId = 1;
 
   const ev = (w: MockWithdrawal, actor: WithdrawalEventDto['actor'], type: string, data: Record<string, unknown>, at = now()) =>
     w.events.push({ id: eventId++, at, actor, type, data });
@@ -115,8 +133,8 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
   const seed = (u: MockUser, p: Partial<MockWithdrawal> & { amountRub: number; createdAt: number }) => {
     const w: MockWithdrawal = {
       id: 1000 + withdrawals.length + 1, userId: u.id, requestId: `seed${withdrawals.length}`, method: 'sbp', phone: null,
-      bankId: null, bankName: null, cardNumber: null, rate: snapshot.rate.sellRate, exchangeBid: snapshot.rate.sellRate / 0.95,
-      amountMicro: usdtMicroForRub(p.amountRub, snapshot.rate.sellRate), balanceBeforeMicro: u.availableMicro, status: 'pending',
+      bankId: null, bankName: null, cardNumber: null, rate: snapshot.rate.walletRate, exchangeRate: snapshot.rate.walletRate / 1.05,
+      amountMicro: usdtMicroForRub(p.amountRub, snapshot.rate.walletRate), balanceBeforeMicro: u.availableMicro, status: 'pending',
       sentAt: null, confirmDeadline: null, finishedAt: null, confirmedBy: null, rejectReason: null, contactRequestedAt: null,
       platform: 'ios', events: [], ...p,
     };
@@ -136,8 +154,33 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
   const user = (id: number) => users.find((u) => u.id === id) ?? fail(404, 'Пользователь не найден');
   const wd = (id: number) => withdrawals.find((w) => w.id === id) ?? fail(404, 'Заявка не найдена');
 
-  const notify = (userId: number, type: NotificationType, withdrawalId: number) =>
-    notifications.push({ id: notificationId++, userId, type, withdrawalId, createdAt: now(), seen: false });
+  const notify = (userId: number, type: NotificationType, withdrawalId: number | null, extra: Partial<NotificationDto> = {}) =>
+    notifications.push({ id: notificationId++, userId, type, withdrawalId, createdAt: now(), seen: false, ...extra });
+
+  const person = (id: number): PersonDto => {
+    const u = user(id);
+    return { username: u.username, firstName: u.firstName, photoUrl: null };
+  };
+  const transferDto = (t: MockTransfer, viewer: number): TransferDto => {
+    const direction = t.to === viewer ? 'in' : 'out';
+    return { id: t.id, direction, kind: t.kind, amountMicro: t.amountMicro, counterparty: person(direction === 'in' ? t.from : t.to), comment: t.comment, createdAt: t.createdAt };
+  };
+  const checkDto = (c: MockCheck): CheckDto => ({
+    id: c.id, code: c.code, amountMicro: c.amountMicro, comment: c.comment, status: c.status, createdAt: c.createdAt,
+    claimedAt: c.claimedAt, claimedBy: c.claimedBy ? person(c.claimedBy) : null, link: checkLink(BOT, c.code),
+  });
+  const amountOf = (input: string) => {
+    const a = parseUsdt(input);
+    return typeof a === 'string' ? fail(400, a) : a;
+  };
+  const findByUsername = (input: string, selfId: number) => {
+    const name = normalizeUsername(input);
+    if (!isValidUsername(name)) fail(400, 'Введите username, например @durov');
+    const u = users.find((x) => x.username?.toLowerCase() === name.toLowerCase());
+    if (!u) fail(404, 'Пользователь не найден. Он должен хотя бы раз открыть кошелёк, или отправьте ему чек');
+    if (u!.id === selfId) fail(400, 'Нельзя перевести самому себе');
+    return u!;
+  };
 
   const move = (w: MockWithdrawal, action: WithdrawalAction) => {
     const to = nextStatus(w.status, action);
@@ -199,6 +242,9 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
         withdrawalsTotal: mine.length,
         withdrawalsCompleted: completed.length,
         disputes: mine.filter((w) => w.events.some((e) => e.type === 'disputed')).length,
+        transfersInMicro: transfers.filter((t) => t.to === id).reduce((a, t) => a + t.amountMicro, 0),
+        transfersOutMicro: transfers.filter((t) => t.from === id).reduce((a, t) => a + t.amountMicro, 0),
+        activeChecksMicro: checks.filter((c) => c.creatorId === id && c.status === 'active').reduce((a, c) => a + c.amountMicro, 0),
       },
     };
   };
@@ -216,7 +262,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       ...listItem(w),
       phone: w.phone, bankId: w.bankId, bankName: w.bankName, cardNumber: w.cardNumber,
       cardBrand: w.cardNumber ? CARD_BRAND_LABEL[cardBrand(w.cardNumber)] : null,
-      rate: w.rate, exchangeBid: w.exchangeBid, balanceBeforeMicro: w.balanceBeforeMicro, sentAt: w.sentAt,
+      rate: w.rate, exchangeRate: w.exchangeRate, balanceBeforeMicro: w.balanceBeforeMicro, sentAt: w.sentAt,
       finishedAt: w.finishedAt, confirmedBy: w.confirmedBy, rejectReason: w.rejectReason,
       contactRequestedAt: w.contactRequestedAt, clientIp: '185.12.64.7 (демо)', userAgent: 'Telegram iOS 11.2 (демо)',
       platform: w.platform, events: w.events, userDetails: adminUser(w.userId),
@@ -231,6 +277,14 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
 
   const me = users[0];
 
+  const contactLock = (userId: number) => {
+    const w = [...withdrawals].reverse().find((x) => x.userId === userId && x.contactRequestedAt && !isFinal(x.status));
+    return w ? { withdrawalId: w.id, amountRub: w.amountRub } : null;
+  };
+  const assertNotLocked = (userId: number) => {
+    if (contactLock(userId)) fail(423, 'Кошелёк временно недоступен. Свяжитесь с поддержкой, чтобы завершить заявку');
+  };
+
   const api: Api = {
     rate: () => delay(snapshot.rate),
     market: () => delay({ coins: snapshot.coins }),
@@ -238,6 +292,8 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       delay({
         user: { id: me.id, telegramId: me.telegramId, username: me.username, firstName: me.firstName, lastName: me.lastName, photoUrl: null },
         availableMicro: me.availableMicro, frozenMicro: me.frozenMicro, blocked: me.blocked, supportUsername: 'cryptoix_support',
+        contactLock: contactLock(me.id),
+        botUsername: BOT,
       }),
     withdrawals: () => delay({ items: withdrawals.filter((w) => w.userId === me.id).reverse().map(userDto) }),
     withdrawal: (id) => {
@@ -249,6 +305,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       const dup = withdrawals.find((w) => w.userId === me.id && w.requestId === req.requestId);
       if (dup) return delay(userDto(dup));
       if (me.blocked) fail(403, 'Вывод недоступен. Свяжитесь с поддержкой');
+      assertNotLocked(me.id);
       const amountError = validatePayoutRub(req.amountRub);
       if (amountError) fail(400, amountError);
       if (req.method === 'sbp') {
@@ -259,7 +316,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
         const e = validateCard(req.cardNumber ?? '');
         if (e) fail(400, e);
       }
-      const amountMicro = usdtMicroForRub(req.amountRub, snapshot.rate.sellRate);
+      const amountMicro = usdtMicroForRub(req.amountRub, snapshot.rate.walletRate);
       if (amountMicro > me.availableMicro) fail(400, 'Недостаточно средств');
       const w: MockWithdrawal = {
         id: 1000 + withdrawals.length + 1, userId: me.id, requestId: req.requestId, method: req.method,
@@ -267,7 +324,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
         bankId: req.method === 'sbp' ? req.bankId! : null,
         bankName: req.method === 'sbp' ? findBank(req.bankId!)!.name : null,
         cardNumber: req.method === 'card' ? req.cardNumber!.replace(/\D/g, '') : null,
-        amountRub: req.amountRub, amountMicro, rate: snapshot.rate.sellRate, exchangeBid: snapshot.rate.sellRate / 0.95,
+        amountRub: req.amountRub, amountMicro, rate: snapshot.rate.walletRate, exchangeRate: snapshot.rate.walletRate / 1.05,
         balanceBeforeMicro: me.availableMicro, status: 'pending', createdAt: now(), sentAt: null, confirmDeadline: null,
         finishedAt: null, confirmedBy: null, rejectReason: null, contactRequestedAt: null, platform: 'demo', events: [],
       };
@@ -291,13 +348,79 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       delay({
         items: notifications
           .filter((n) => n.userId === me.id && !n.seen)
-          .map(({ id, type, withdrawalId, createdAt }) => ({ id, type, withdrawalId, createdAt })),
+          .map(({ id, type, withdrawalId, createdAt, transfer, check }) => ({ id, type, withdrawalId, createdAt, transfer, check })),
       }),
     markNotificationsSeen: (ids) => {
       for (const n of notifications) if (ids.includes(n.id)) n.seen = true;
       return delay({ ok: true });
     },
+    history: () => {
+      const items: HistoryItem[] = [
+        ...withdrawals.filter((w) => w.userId === me.id).map((w): HistoryItem => ({ type: 'withdrawal', at: w.createdAt, withdrawal: userDto(w) })),
+        ...transfers
+          .filter((t) => t.to === me.id || (t.from === me.id && t.kind === 'direct'))
+          .map((t): HistoryItem => ({ type: 'transfer', at: t.createdAt, transfer: transferDto(t, me.id) })),
+        ...checks.filter((c) => c.creatorId === me.id).map((c): HistoryItem => ({ type: 'check', at: c.createdAt, check: checkDto(c) })),
+      ];
+      return delay({ items: items.sort((a, b) => b.at - a.at) });
+    },
+    lookupUser: (username) => delay(person(findByUsername(username, me.id).id)),
+    sendTransfer: (req) => {
+      const dup = transfers.find((t) => t.from === me.id && t.requestId === req.requestId);
+      if (dup) return delay(transferDto(dup, me.id));
+      assertNotLocked(me.id);
+      const to = findByUsername(req.username, me.id);
+      const amountMicro = amountOf(req.amount);
+      if (amountMicro > me.availableMicro) fail(400, 'Недостаточно средств');
+      me.availableMicro -= amountMicro;
+      to.availableMicro += amountMicro;
+      const t: MockTransfer = { id: transferId++, from: me.id, to: to.id, amountMicro, kind: 'direct', comment: cleanComment(req.comment), requestId: req.requestId, createdAt: now() };
+      transfers.push(t);
+      return delay(transferDto(t, me.id));
+    },
+    checks: () => delay({ items: checks.filter((c) => c.creatorId === me.id).reverse().map(checkDto) }),
+    createCheck: (req) => {
+      assertNotLocked(me.id);
+      const amountMicro = amountOf(req.amount);
+      if (amountMicro > me.availableMicro) fail(400, 'Недостаточно средств');
+      me.availableMicro -= amountMicro;
+      me.frozenMicro += amountMicro;
+      const code = Math.random().toString(36).slice(2, 12);
+      const c: MockCheck = { id: checkId++, code, creatorId: me.id, amountMicro, comment: cleanComment(req.comment), status: 'active', createdAt: now(), claimedBy: null, claimedAt: null };
+      checks.push(c);
+      return delay(checkDto(c));
+    },
+    cancelCheck: (id) => {
+      const c = checks.find((x) => x.id === id && x.creatorId === me.id) ?? fail(404, 'Чек не найден');
+      if (c.status !== 'active') fail(409, 'Чек уже активирован или отменён');
+      c.status = 'cancelled';
+      me.frozenMicro -= c.amountMicro;
+      me.availableMicro += c.amountMicro;
+      return delay(checkDto(c));
+    },
+    demoClaimCheck: (code) => {
+      const c = checks.find((x) => x.code === code) ?? fail(404, 'Чек не найден');
+      if (c.status !== 'active') fail(409, 'Этот чек уже активирован');
+      const friend = users[2];
+      c.status = 'claimed';
+      c.claimedBy = friend.id;
+      c.claimedAt = now();
+      user(c.creatorId).frozenMicro -= c.amountMicro;
+      friend.availableMicro += c.amountMicro;
+      transfers.push({ id: transferId++, from: c.creatorId, to: friend.id, amountMicro: c.amountMicro, kind: 'check', comment: c.comment, requestId: null, createdAt: now() });
+      notify(c.creatorId, 'check_claimed', null, { check: checkDto(c) });
+      return delay({ ok: true });
+    },
   };
+
+  // Demo: a friend sends the user a little USDT a few seconds after opening, to show the incoming notice.
+  setTimeout(() => {
+    const t: MockTransfer = { id: transferId++, from: users[2].id, to: me.id, amountMicro: 15 * USDT_MICRO, kind: 'direct', comment: 'Возвращаю за обед', requestId: null, createdAt: now() };
+    users[2].availableMicro -= t.amountMicro;
+    me.availableMicro += t.amountMicro;
+    transfers.push(t);
+    notify(me.id, 'transfer_received', null, { transfer: transferDto(t, me.id) });
+  }, 4000);
 
   const counts = (): AdminCounts => {
     const c: AdminCounts = { pending: 0, sent: 0, disputed: 0, completed: 0, rejected: 0 };
@@ -341,6 +464,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
     },
     requestContact: (id) => {
       const w = wd(id);
+      if (isFinal(w.status)) fail(409, 'Заявка уже завершена');
       w.contactRequestedAt = now();
       ev(w, 'admin', 'contact_requested', {});
       notify(w.userId, 'contact_support', w.id);

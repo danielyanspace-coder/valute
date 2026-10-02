@@ -13,6 +13,8 @@ import { adminRoutes } from './routes/adminRoutes.js';
 import { userRoutes } from './routes/userRoutes.js';
 import type { UserRepo } from './users/userRepo.js';
 import { AppError, type WithdrawalService } from './withdrawals/withdrawalService.js';
+import { renderCheckJpeg } from './checks/checkImage.js';
+import type { TransferService } from './transfers/transferService.js';
 
 export interface AppDeps {
   rates: RateService;
@@ -21,6 +23,8 @@ export interface AppDeps {
   ledger: Ledger;
   withdrawals: WithdrawalService;
   notifications: NotificationService;
+  transfers: TransferService;
+  botUsername: () => string;
   adminToken: string;
   telegramBotToken: string;
   allowDevAuth: boolean;
@@ -46,11 +50,18 @@ export function buildApp(deps: AppDeps) {
     const rate = deps.rates.getWalletRate();
     if (!rate) return reply.code(503).send({ error: 'rate_unavailable' });
     // The exchange source and margins are internal; clients only see wallet prices.
-    const { pair, buyRate, sellRate, change24hPercent, history, updatedAt } = rate;
-    return { pair, buyRate, sellRate, change24hPercent, history, updatedAt };
+    const { pair, walletRate, qrPayRate, change24hPercent, history, updatedAt } = rate;
+    return { pair, walletRate, qrPayRate, change24hPercent, history, updatedAt };
   });
 
   app.get('/api/market', async () => ({ coins: deps.rates.getMarket() }));
+
+  // Public check artwork; Telegram downloads it for inline results. /api/checks/image/10.jpg
+  app.get<{ Params: { amount: string } }>('/api/checks/image/:amount', async (req, reply) => {
+    const amount = req.params.amount.replace(/\.jpg$/, '');
+    if (!/^\d{1,9}(\.\d{1,2})?$/.test(amount)) return reply.code(400).send({ error: 'bad_amount' });
+    return reply.header('content-type', 'image/jpeg').header('cache-control', 'public, max-age=31536000, immutable').send(renderCheckJpeg(amount));
+  });
 
   app.register(async (scope) => {
     scope.addHook(

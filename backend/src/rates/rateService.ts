@@ -6,10 +6,10 @@ export interface RatePoint {
 }
 
 export interface RateMargins {
-  /** Added to Rapira ask when the user buys USDT (deposit, balance display). */
-  buyMarkupPercent: number;
-  /** Taken off Rapira bid when the user spends USDT for rubles (SBP payments). */
-  sellDiscountPercent: number;
+  /** Wallet rate = Rapira ask * (1 + X%). Shown on the home screen, used for ruble withdrawals. */
+  walletMarkupPercent: number;
+  /** QR payment rate = Rapira bid * (1 - X%). Used when paying an SBP QR code from the balance. */
+  qrPayDiscountPercent: number;
 }
 
 export interface WalletRate extends RateMargins {
@@ -18,10 +18,10 @@ export interface WalletRate extends RateMargins {
   exchangeAsk: number;
   /** Rapira bid price — what the exchange pays for 1 USDT. */
   exchangeBid: number;
-  /** RUB per 1 USDT when the user buys: ask * (1 + buyMarkup). Shown on the home screen. */
-  buyRate: number;
-  /** RUB per 1 USDT when the user pays in rubles: bid * (1 - sellDiscount). */
-  sellRate: number;
+  /** RUB per 1 USDT: the wallet's current rate, used for withdrawals. */
+  walletRate: number;
+  /** RUB per 1 USDT for paying SBP QR codes. */
+  qrPayRate: number;
   change24hPercent: number;
   history: RatePoint[];
   updatedAt: number;
@@ -67,7 +67,7 @@ export class RateService {
     this.updatedAt = this.now();
 
     const usdt = this.tickers.get('USDT/RUB');
-    if (usdt) this.recordHistory(applyMarkup(usdt.askPrice, this.margins.buyMarkupPercent));
+    if (usdt) this.recordHistory(applyMarkup(usdt.askPrice, this.margins.walletMarkupPercent));
   }
 
   start(intervalMs: number, onError: (err: unknown) => void): Promise<void> {
@@ -89,8 +89,8 @@ export class RateService {
       ...this.margins,
       exchangeAsk: usdt.askPrice,
       exchangeBid: usdt.bidPrice,
-      buyRate: applyMarkup(usdt.askPrice, this.margins.buyMarkupPercent),
-      sellRate: applyDiscount(usdt.bidPrice, this.margins.sellDiscountPercent),
+      walletRate: applyMarkup(usdt.askPrice, this.margins.walletMarkupPercent),
+      qrPayRate: applyDiscount(usdt.bidPrice, this.margins.qrPayDiscountPercent),
       change24hPercent: round2(usdt.chg * 100),
       history: this.historyWithSeed(usdt),
       updatedAt: this.updatedAt,
@@ -126,7 +126,7 @@ export class RateService {
    */
   private historyWithSeed(usdt: RapiraTicker): RatePoint[] {
     if (this.history.length >= 12) return [...this.history];
-    const m = (p: number) => applyMarkup(p, this.margins.buyMarkupPercent);
+    const m = (p: number) => applyMarkup(p, this.margins.walletMarkupPercent);
     const now = this.now();
     const day = HISTORY_WINDOW_MS;
     const seed: RatePoint[] = [

@@ -64,3 +64,24 @@ describe('bank search', () => {
     expect(searchBanks('').length).toBeGreaterThan(150);
   });
 });
+
+import { parseInlineQuery, parseUsdt, shortUsdt } from './transfers.js';
+
+describe('transfers parsing', () => {
+  it('parses amounts', () => {
+    expect(parseUsdt('10')).toBe(10_000_000);
+    expect(parseUsdt('$2,5')).toBe(2_500_000);
+    expect(parseUsdt('0.01 USDT')).toBe(10_000);
+    expect(parseUsdt('abc')).toMatch(/Введите/);
+    expect(shortUsdt(2_500_000)).toBe('2.5');
+    expect(shortUsdt(10_000_000)).toBe('10');
+  });
+
+  it('parses inline queries', () => {
+    expect(parseInlineQuery('')).toEqual({ kind: 'empty' });
+    expect(parseInlineQuery('10 на кофе')).toEqual({ kind: 'amount', amountMicro: 10_000_000, comment: 'на кофе' });
+    expect(parseInlineQuery('2.5 usdt')).toEqual({ kind: 'amount', amountMicro: 2_500_000, comment: null });
+    expect(parseInlineQuery('c_AbCdEf1234')).toEqual({ kind: 'check', code: 'AbCdEf1234' });
+    expect(parseInlineQuery('привет').kind).toBe('invalid');
+  });
+});

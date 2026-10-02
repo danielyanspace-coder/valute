@@ -60,7 +60,7 @@ const MIGRATIONS: string[] = [
     amount_rub INTEGER NOT NULL,
     amount_micro INTEGER NOT NULL,
     rate REAL NOT NULL,
-    exchange_bid REAL,
+    exchange_rate REAL,
     balance_before_micro INTEGER NOT NULL,
     status TEXT NOT NULL,
     created_at INTEGER NOT NULL,
@@ -100,6 +100,55 @@ const MIGRATIONS: string[] = [
     seen_at INTEGER
   );
   CREATE INDEX notifications_unseen ON notifications(user_id, seen_at);
+  `,
+  `
+  CREATE INDEX users_username ON users(username COLLATE NOCASE);
+
+  -- A check reserves USDT (frozen bucket) until someone activates it or the creator cancels it.
+  CREATE TABLE checks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE,
+    creator_id INTEGER NOT NULL REFERENCES users(id),
+    amount_micro INTEGER NOT NULL,
+    comment TEXT,
+    status TEXT NOT NULL CHECK (status IN ('active', 'claimed', 'cancelled')),
+    source TEXT NOT NULL CHECK (source IN ('app', 'inline')),
+    request_id TEXT,
+    inline_message_id TEXT,
+    created_at INTEGER NOT NULL,
+    claimed_by INTEGER REFERENCES users(id),
+    claimed_at INTEGER,
+    cancelled_at INTEGER,
+    UNIQUE (creator_id, request_id)
+  );
+  CREATE INDEX checks_creator ON checks(creator_id, created_at);
+
+  -- What the user saw in inline mode before sending it; becomes a check once the message is sent.
+  CREATE TABLE check_offers (
+    code TEXT PRIMARY KEY,
+    creator_id INTEGER NOT NULL REFERENCES users(id),
+    amount_micro INTEGER NOT NULL,
+    comment TEXT,
+    created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE transfers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_user_id INTEGER NOT NULL REFERENCES users(id),
+    to_user_id INTEGER NOT NULL REFERENCES users(id),
+    amount_micro INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('direct', 'check')),
+    check_id INTEGER REFERENCES checks(id),
+    comment TEXT,
+    request_id TEXT,
+    created_at INTEGER NOT NULL,
+    UNIQUE (from_user_id, request_id)
+  );
+  CREATE INDEX transfers_from ON transfers(from_user_id, created_at);
+  CREATE INDEX transfers_to ON transfers(to_user_id, created_at);
+
+  ALTER TABLE notifications ADD COLUMN transfer_id INTEGER;
+  ALTER TABLE notifications ADD COLUMN check_id INTEGER;
   `,
 ];
 

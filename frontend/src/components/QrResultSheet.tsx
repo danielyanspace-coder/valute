@@ -6,17 +6,17 @@ import { Sheet } from './Sheet';
 interface Props {
   result: ParsedQr | null;
   /** Sell rate: SBP / invoice payments convert rubles to USDT at this price. */
-  sellRate: number | null;
+  qrPayRate: number | null;
   onClose: () => void;
   onRescan: () => void;
 }
 
 const NETWORK_LABEL = { TRC20: 'TRON (TRC-20)', EVM: 'EVM (ERC-20 / BEP-20)', TON: 'TON', SOL: 'Solana' } as const;
 
-export function QrResultSheet({ result, sellRate, onClose, onRescan }: Props) {
+export function QrResultSheet({ result, qrPayRate, onClose, onRescan }: Props) {
   if (!result) return null;
 
-  const usdtFor = (rub?: number) => (rub && sellRate ? fmtUsdt(rub / sellRate) : null);
+  const usdtFor = (rub?: number) => (rub && qrPayRate ? fmtUsdt(rub / qrPayRate) : null);
 
   let title = 'QR-код';
   let body: ReactNode;

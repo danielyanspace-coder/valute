@@ -48,6 +48,11 @@ export class UserRepo {
     return this.db.prepare('SELECT * FROM users WHERE id = ?').get(id) as unknown as UserRow | undefined;
   }
 
+  /** Case-insensitive; only users who opened the wallet or the bot at least once are known. */
+  findByUsername(username: string): UserRow | undefined {
+    return this.db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').get(username) as unknown as UserRow | undefined;
+  }
+
   setBlocked(id: number, blocked: boolean): void {
     this.db.prepare('UPDATE users SET blocked = ? WHERE id = ?').run(blocked ? 1 : 0, id);
   }

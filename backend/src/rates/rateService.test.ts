@@ -21,7 +21,7 @@ describe('applyDiscount', () => {
 
 describe('RateService', () => {
   it('builds wallet rate from Rapira ask price + markup', async () => {
-    const svc = new RateService({ buyMarkupPercent: 5, sellDiscountPercent: 5 }, async () => [
+    const svc = new RateService({ walletMarkupPercent: 5, qrPayDiscountPercent: 5 }, async () => [
       ticker('USDT/RUB', { askPrice: 86.5, bidPrice: 86.47, open: 86.42, low: 85.86, high: 86.64, close: 86.5, chg: 0.00093 }),
       ticker('BTC/USDT', { close: 84945.5, chg: 0.0044 }),
     ], () => 1_000_000_000);
@@ -29,8 +29,8 @@ describe('RateService', () => {
     await svc.refresh();
     const rate = svc.getWalletRate()!;
     expect(rate.exchangeAsk).toBe(86.5);
-    expect(rate.buyRate).toBe(90.83);
-    expect(rate.sellRate).toBe(82.15);
+    expect(rate.walletRate).toBe(90.83);
+    expect(rate.qrPayRate).toBe(82.15);
     expect(rate.change24hPercent).toBe(0.09);
     expect(rate.history.at(-1)!.v).toBe(90.83);
     expect(svc.getMarket()).toEqual([
@@ -42,7 +42,7 @@ describe('RateService', () => {
   it('keeps one history point per 5-minute bucket', async () => {
     let now = 0;
     let ask = 80;
-    const svc = new RateService({ buyMarkupPercent: 0, sellDiscountPercent: 0 }, async () => [ticker('USDT/RUB', { askPrice: ask })], () => now);
+    const svc = new RateService({ walletMarkupPercent: 0, qrPayDiscountPercent: 0 }, async () => [ticker('USDT/RUB', { askPrice: ask })], () => now);
     for (let i = 0; i < 30; i++) {
       now = i * 60_000;
       ask = 80 + i;

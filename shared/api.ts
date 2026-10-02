@@ -16,6 +16,13 @@ export interface MeDto {
   frozenMicro: number;
   blocked: boolean;
   supportUsername: string;
+  /**
+   * Set while the operator asked the user to contact support and the deal is not finished:
+   * the app shows a blocking screen and the server refuses money operations.
+   */
+  contactLock: { withdrawalId: number; amountRub: number } | null;
+  /** Bot username without "@", for check links and the "@bot 10" hint. */
+  botUsername: string;
 }
 
 export interface CreateWithdrawalRequest {
@@ -49,14 +56,76 @@ export interface WithdrawalDto {
   serverNow: number;
 }
 
-export type NotificationType = 'confirm_receipt' | 'contact_support' | 'withdrawal_completed' | 'withdrawal_rejected';
+export type NotificationType =
+  | 'confirm_receipt'
+  | 'contact_support'
+  | 'withdrawal_completed'
+  | 'withdrawal_rejected'
+  | 'transfer_received'
+  | 'check_claimed';
 
 export interface NotificationDto {
   id: number;
   type: NotificationType;
   withdrawalId: number | null;
+  /** transfer_received: what arrived and from whom. */
+  transfer?: TransferDto | null;
+  /** check_claimed: the sender's check that was just activated. */
+  check?: CheckDto | null;
   createdAt: number;
 }
+
+// ---------- Transfers and checks ----------
+
+export interface PersonDto {
+  username: string | null;
+  firstName: string;
+  photoUrl?: string | null;
+}
+
+export interface TransferDto {
+  id: number;
+  direction: 'in' | 'out';
+  /** direct = by username, check = someone activated a check. */
+  kind: 'direct' | 'check';
+  amountMicro: number;
+  counterparty: PersonDto;
+  comment: string | null;
+  createdAt: number;
+}
+
+export type CheckStatus = 'active' | 'claimed' | 'cancelled';
+
+export interface CheckDto {
+  id: number;
+  code: string;
+  amountMicro: number;
+  comment: string | null;
+  status: CheckStatus;
+  createdAt: number;
+  claimedAt: number | null;
+  claimedBy: PersonDto | null;
+  /** https://t.me/<bot>?start=c_<code> */
+  link: string;
+}
+
+export interface SendTransferRequest {
+  username: string;
+  amount: string;
+  comment?: string;
+  requestId: string;
+}
+
+export interface CreateCheckRequest {
+  amount: string;
+  comment?: string;
+  requestId: string;
+}
+
+export type HistoryItem =
+  | { type: 'withdrawal'; at: number; withdrawal: WithdrawalDto }
+  | { type: 'transfer'; at: number; transfer: TransferDto }
+  | { type: 'check'; at: number; check: CheckDto };
 
 // ---------- Admin ----------
 
@@ -82,6 +151,9 @@ export interface AdminUserDto {
     withdrawalsTotal: number;
     withdrawalsCompleted: number;
     disputes: number;
+    transfersInMicro: number;
+    transfersOutMicro: number;
+    activeChecksMicro: number;
   };
 }
 
@@ -112,7 +184,8 @@ export interface AdminWithdrawalDto extends AdminWithdrawalListItem {
   cardNumber: string | null;
   cardBrand: string | null;
   rate: number;
-  exchangeBid: number | null;
+  /** Rapira price the applied rate was derived from. */
+  exchangeRate: number | null;
   balanceBeforeMicro: number;
   sentAt: number | null;
   finishedAt: number | null;

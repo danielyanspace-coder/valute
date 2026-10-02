@@ -1,0 +1,217 @@
+import type { TelegramUser } from '../auth/telegram.js';
+import { checkLink, CHECK_START_PREFIX, parseInlineQuery, shortUsdt } from '../../../shared/transfers.js';
+import type { Ledger } from '../ledger/ledger.js';
+import type { TransferService, CheckRow } from '../transfers/transferService.js';
+import type { UserRepo } from '../users/userRepo.js';
+import type { WithdrawalService } from '../withdrawals/withdrawalService.js';
+
+/** Thin Bot API client. */
+export class TelegramApi {
+  constructor(
+    private readonly token: string,
+    private readonly fetchImpl: typeof fetch = fetch,
+  ) {}
+
+  async call<T = unknown>(method: string, params: Record<string, unknown> = {}, timeoutMs = 15_000): Promise<T> {
+    const res = await this.fetchImpl(`https://api.telegram.org/bot${this.token}/${method}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(params),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const body = (await res.json()) as { ok: boolean; result?: T; description?: string };
+    if (!body.ok) throw new Error(`${method}: ${body.description}`);
+    return body.result as T;
+  }
+}
+
+interface Update {
+  update_id: number;
+  message?: { chat: { id: number; type: string }; from?: TelegramUser; text?: string };
+  inline_query?: { id: string; from: TelegramUser; query: string };
+  chosen_inline_result?: { result_id: string; from: TelegramUser; inline_message_id?: string };
+}
+
+export interface BotDeps {
+  users: UserRepo;
+  ledger: Ledger;
+  transfers: TransferService;
+  withdrawals: WithdrawalService;
+  /** Public HTTPS address of this server (the Mini App URL). Needed for check images and the "open wallet" button. */
+  publicUrl: string;
+  log: { info: (o: object, m?: string) => void; error: (o: object, m?: string) => void };
+}
+
+const fmtUsd = (micro: number) =>
+  `$${(micro / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const who = (u: { username: string | null; first_name: string }) => (u.username ? `@${u.username}` : u.first_name);
+
+/**
+ * The wallet bot, CryptoBot-style:
+ * - inline mode "@bot 10 comment" in any chat posts a check with a "Получить 10 USDT" button;
+ * - the button opens the bot with /start c_<code>, which credits the check to whoever pressed it;
+ * - both sides get a message, and the posted check is edited to "активирован".
+ */
+export class WalletBot {
+  username = '';
+  private offset = 0;
+  private running = false;
+
+  constructor(
+    private readonly api: TelegramApi,
+    private readonly deps: BotDeps,
+  ) {}
+
+  async start(): Promise<void> {
+    const me = await this.api.call<{ username: string }>('getMe');
+    this.username = me.username;
+    await this.api
+      .call('setMyCommands', { commands: [{ command: 'start', description: 'Открыть кошелёк' }, { command: 'send', description: 'Как отправить USDT' }] })
+      .catch((err) => this.deps.log.error({ err }, 'setMyCommands failed'));
+    this.running = true;
+    void this.loop();
+    this.deps.log.info({ bot: this.username }, 'bot started');
+  }
+
+  stop(): void {
+    this.running = false;
+  }
+
+  private async loop(): Promise<void> {
+    while (this.running) {
+      try {
+        const updates = await this.api.call<Update[]>(
+          'getUpdates',
+          { offset: this.offset, timeout: 30, allowed_updates: ['message', 'inline_query', 'chosen_inline_result'] },
+          40_000,
+        );
+        for (const u of updates) {
+          this.offset = u.update_id + 1;
+          await this.handle(u).catch((err) => this.deps.log.error({ err, update: u.update_id }, 'bot update failed'));
+        }
+      } catch (err) {
+        this.deps.log.error({ err }, 'getUpdates failed');
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+    }
+  }
+
+  async handle(u: Update): Promise<unknown> {
+    if (u.inline_query) return this.onInlineQuery(u.inline_query);
+    if (u.chosen_inline_result) return this.onChosen(u.chosen_inline_result);
+    if (u.message?.text && u.message.from && u.message.chat.type === 'private') return this.onMessage(u.message.from, u.message.text);
+  }
+
+  // ---------- Private chat ----------
+
+  private async onMessage(from: TelegramUser, text: string): Promise<unknown> {
+    const user = this.deps.users.upsertFromTelegram(from);
+    const [cmd, payload = ''] = text.trim().split(/\s+/, 2);
+    if (cmd === '/start' && payload.startsWith(CHECK_START_PREFIX)) return this.claim(from.id, user.id, payload.slice(CHECK_START_PREFIX.length));
+    if (cmd === '/send') return this.reply(from.id, this.howToSend());
+    return this.reply(from.id, `Crypto IX: кошелёк USDT прямо в Telegram.\n\n${this.howToSend()}`);
+  }
+
+  private howToSend(): string {
+    return [
+      'Как отправить USDT без комиссии:',
+      `• В любом чате напишите @${this.username} 10 и выберите «Отправить чек». Получатель нажмёт «Получить», и деньги придут ему на баланс.`,
+      `• Можно добавить комментарий: @${this.username} 10 за кофе`,
+      '• Или откройте кошелёк → «Перевести» и отправьте по username.',
+    ].join('\n');
+  }
+
+  private async claim(chatId: number, userId: number, code: string): Promise<void> {
+    const claimer = this.deps.users.get(userId)!;
+    try {
+      const { check, creator } = this.deps.transfers.claim(code, claimer);
+      const comment = check.comment ? `\nКомментарий: «${check.comment}»` : '';
+      await this.reply(chatId, `Вы получили ${shortUsdt(check.amount_micro)} USDT (${fmtUsd(check.amount_micro)}) от ${who(creator)}.${comment}\nСредства уже на балансе.`);
+      await this.markClaimed(check, who(claimer));
+    } catch (err) {
+      await this.reply(chatId, (err as Error).message || 'Не удалось получить чек');
+    }
+  }
+
+  // ---------- Inline mode ----------
+
+  private async onInlineQuery(q: { id: string; from: TelegramUser; query: string }): Promise<unknown> {
+    const user = this.deps.users.upsertFromTelegram(q.from);
+    const parsed = parseInlineQuery(q.query);
+    const answer = (results: unknown[], buttonText?: string) =>
+      this.api.call('answerInlineQuery', {
+        inline_query_id: q.id,
+        results,
+        cache_time: 0,
+        is_personal: true,
+        ...(buttonText && this.deps.publicUrl ? { button: { text: buttonText, web_app: { url: this.deps.publicUrl } } } : {}),
+      });
+
+    if (user.blocked || this.deps.withdrawals.contactLock(user.id)) return answer([], 'Операции недоступны · открыть кошелёк');
+    const balance = this.deps.ledger.balances(user.id).availableMicro;
+
+    if (parsed.kind === 'empty') return answer([], `Введите сумму, например 10 · баланс ${shortUsdt(balance)} USDT`);
+    if (parsed.kind === 'invalid') return answer([], parsed.error);
+
+    if (parsed.kind === 'check') {
+      const c = this.deps.transfers.checkByCode(parsed.code);
+      if (!c || c.creator_id !== user.id || c.status !== 'active') return answer([], 'Чек не найден или уже активирован');
+      return answer([this.checkResult(`x_${c.code}`, c.code, c.amount_micro, c.comment)]);
+    }
+
+    if (balance < parsed.amountMicro) return answer([], `Недостаточно средств · баланс ${shortUsdt(balance)} USDT`);
+    const code = this.deps.transfers.createOffer(user, parsed.amountMicro, parsed.comment);
+    return answer([this.checkResult(code, code, parsed.amountMicro, parsed.comment)], `Баланс ${shortUsdt(balance)} USDT · открыть кошелёк`);
+  }
+
+  private checkResult(resultId: string, code: string, amountMicro: number, comment: string | null) {
+    const amount = shortUsdt(amountMicro);
+    const caption = `Чек на ${amount} USDT (${fmtUsd(amountMicro)}).${comment ? `\n«${comment}»` : ''}`;
+    const reply_markup = { inline_keyboard: [[{ text: `Получить ${amount} USDT`, url: checkLink(this.username, code) }]] };
+    const title = `Отправить чек на ${amount} USDT`;
+    const description = comment ? `«${comment}»` : 'Получатель нажмёт «Получить», и USDT придут ему на баланс';
+    if (this.deps.publicUrl) {
+      const img = `${this.deps.publicUrl.replace(/\/$/, '')}/api/checks/image/${amount}.jpg`;
+      return { type: 'photo', id: resultId, photo_url: img, thumbnail_url: img, photo_width: 1200, photo_height: 800, title, description, caption, reply_markup };
+    }
+    return { type: 'article', id: resultId, title, description, input_message_content: { message_text: caption }, reply_markup };
+  }
+
+  private async onChosen(r: { result_id: string; inline_message_id?: string }): Promise<void> {
+    if (r.result_id.startsWith('x_')) {
+      const c = this.deps.transfers.checkByCode(r.result_id.slice(2));
+      if (c && r.inline_message_id) this.deps.transfers.materializeOffer(c.code, r.inline_message_id);
+      return;
+    }
+    try {
+      this.deps.transfers.materializeOffer(r.result_id, r.inline_message_id);
+    } catch (err) {
+      // Balance changed between typing and sending: turn the posted message into a notice.
+      if (r.inline_message_id) {
+        await this.api
+          .call('editMessageCaption', {
+            inline_message_id: r.inline_message_id,
+            caption: `Чек не создан: ${(err as Error).message.toLowerCase()}.`,
+            reply_markup: { inline_keyboard: [] },
+          })
+          .catch(() => {});
+      }
+    }
+  }
+
+  private async markClaimed(check: CheckRow, claimer: string): Promise<void> {
+    if (!check.inline_message_id) return;
+    await this.api
+      .call('editMessageCaption', {
+        inline_message_id: check.inline_message_id,
+        caption: `Чек на ${shortUsdt(check.amount_micro)} USDT активирован ${claimer}.`,
+        reply_markup: { inline_keyboard: [] },
+      })
+      .catch((err) => this.deps.log.error({ err }, 'edit claimed check failed'));
+  }
+
+  private reply(chatId: number, text: string) {
+    const markup = this.deps.publicUrl ? { reply_markup: { inline_keyboard: [[{ text: 'Открыть кошелёк', web_app: { url: this.deps.publicUrl } }]] } } : {};
+    return this.api.call('sendMessage', { chat_id: chatId, text, ...markup });
+  }
+}

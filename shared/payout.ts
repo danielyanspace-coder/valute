@@ -142,20 +142,20 @@ export function validatePayoutRub(amount: number, availableRub?: number): string
 }
 
 /**
- * USDT (in micro units, 6 decimals) needed to pay out `rub` at `sellRate` RUB per USDT.
+ * USDT (in micro units, 6 decimals) needed to pay out `rub` at `rate` RUB per USDT.
  * Integer maths on kopecks so 8 223 ₽ at 82.23 is exactly 100 USDT; any remainder rounds up.
  */
-export function usdtMicroForRub(rub: number, sellRate: number): number {
-  const rateKop = BigInt(Math.round(sellRate * 100));
+export function usdtMicroForRub(rub: number, rate: number): number {
+  const rateKop = BigInt(Math.round(rate * 100));
   const num = BigInt(rub) * 100n * BigInt(USDT_MICRO);
   return Number((num + rateKop - 1n) / rateKop);
 }
 
 /** Largest payout (multiple of the step) that fits into the available USDT. */
-export function maxPayoutRub(availableMicro: number, sellRate: number): number {
-  const rub = Math.floor((availableMicro / USDT_MICRO) * sellRate);
+export function maxPayoutRub(availableMicro: number, rate: number): number {
+  const rub = Math.floor((availableMicro / USDT_MICRO) * rate);
   let max = rub - (rub % PAYOUT_STEP_RUB);
-  while (max > 0 && usdtMicroForRub(max, sellRate) > availableMicro) max -= PAYOUT_STEP_RUB;
+  while (max > 0 && usdtMicroForRub(max, rate) > availableMicro) max -= PAYOUT_STEP_RUB;
   return max;
 }
 

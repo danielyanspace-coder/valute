@@ -7,7 +7,7 @@ import { NotificationService } from '../notifications/notificationService.js';
 import { UserRepo, type UserRow } from '../users/userRepo.js';
 import { WithdrawalService } from './withdrawalService.js';
 
-const QUOTE = { sellRate: 82, exchangeBid: 86.32 };
+const QUOTE = { rate: 82, exchangeRate: 78.1 };
 const VALID_CARD = '2200000000000004'; // МИР test number, passes Luhn
 
 let now: number;
@@ -139,5 +139,18 @@ describe('lifecycle', () => {
     svc.create(other, sbp({ method: 'card', cardNumber: VALID_CARD, amountRub: 500 }), QUOTE);
     const w = svc.create(user, sbp({ method: 'card', cardNumber: VALID_CARD, amountRub: 500 }), QUOTE);
     expect(svc.adminGet(w.id).sameDestinationUsers).toEqual([{ id: other.id, username: null, firstName: 'Other', withdrawals: 1 }]);
+  });
+});
+
+describe('contact lock', () => {
+  it('locks money operations until the deal is finished', () => {
+    const w = svc.create(user, sbp(), QUOTE);
+    expect(svc.contactLock(user.id)).toBeNull();
+    svc.requestContact(w.id);
+    expect(svc.contactLock(user.id)).toEqual({ withdrawalId: w.id, amountRub: 8200 });
+    expect(() => svc.create(user, sbp({ amountRub: 500 }), QUOTE)).toThrow(/недоступен/);
+    svc.reject(w.id, 'Не удалось связаться');
+    expect(svc.contactLock(user.id)).toBeNull();
+    expect(() => svc.requestContact(w.id)).toThrow(/завершена/);
   });
 });
