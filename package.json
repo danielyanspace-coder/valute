@@ -7,6 +7,7 @@
     "build": "npm run build -w frontend && npm run build -w backend",
     "start": "npm run start -w backend",
     "test": "npm test -w backend && npm test -w frontend",
+    "demo": "npm run build -w backend && node scripts/build-demo.mjs",
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend"
   }
 }

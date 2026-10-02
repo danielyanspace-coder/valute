@@ -30,7 +30,20 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export const api = {
-  rate: () => get<WalletRate>('/api/rate'),
-  market: () => get<{ coins: MarketCoin[] }>('/api/market'),
-};
+export const IS_DEMO = import.meta.env.MODE === 'demo';
+
+interface DemoSnapshot {
+  rate: WalletRate;
+  coins: MarketCoin[];
+}
+declare const __DEMO_SNAPSHOT__: DemoSnapshot | undefined;
+
+export const api = IS_DEMO
+  ? {
+      rate: async () => __DEMO_SNAPSHOT__!.rate,
+      market: async () => ({ coins: __DEMO_SNAPSHOT__!.coins }),
+    }
+  : {
+      rate: () => get<WalletRate>('/api/rate'),
+      market: () => get<{ coins: MarketCoin[] }>('/api/market'),
+    };

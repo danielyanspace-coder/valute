@@ -19,6 +19,8 @@ npm run dev                   # backend :8080, frontend :5173 (проксиру�
 
 Проверки: `npm test`, `npm run typecheck`.
 
+Демо без бэкенда и Telegram: `npm run demo` → `demo/crypto-ix-demo.html` (курсы Rapira на момент сборки).
+
 ## API
 
 | Метод | Ответ |
@@ -26,3 +28,4 @@ npm run dev                   # backend :8080, frontend :5173 (проксиру�
 | `GET /api/rate` | `{ buyRate, sellRate, change24hPercent, history[], updatedAt }`: покупка (ask Rapira + 5%) и оплата СБП (bid Rapira − 5%), ₽ за 1 USDT |
 | `GET /api/market` | цены BTC/ETH/USDT/SOL в USD |
 | `GET /api/me` | пользователь Telegram; заголовок `Authorization: tma <initData>` |
+| `GET /api/admin/aml/check?chain=TRON&address=…` | бесплатная AML-проверка адреса; `Authorization: Bearer $ADMIN_TOKEN` |

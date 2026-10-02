@@ -19,4 +19,11 @@ export const config = {
   rateSellDiscountPercent: num('RATE_SELL_DISCOUNT_PERCENT', 5),
   ratePollMs: num('RATE_POLL_MS', 15_000),
   allowDevAuth: process.env.ALLOW_DEV_AUTH === 'true',
+  /** Bearer token for /api/admin/* until a real admin panel exists. Empty = admin API off. */
+  adminToken: process.env.ADMIN_TOKEN ?? '',
+  rpc: {
+    TRON: process.env.TRON_RPC_URL || 'https://tron-rpc.publicnode.com/jsonrpc',
+    ETH: process.env.ETH_RPC_URL || 'https://ethereum-rpc.publicnode.com',
+  },
+  chainalysisSanctionsApiKey: process.env.CHAINALYSIS_SANCTIONS_API_KEY ?? '',
 };

@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --bg: #07090d;
   --card: linear-gradient(180deg, rgba(22, 26, 34, 0.92), rgba(12, 15, 20, 0.92));
   --card-solid: #10131a;
@@ -374,3 +375,17 @@ button.card:active { transform: scale(0.98); border-color: var(--border-strong);
   font-size: 13px;
 }
 .rate-tile b { font-size: 19px; }
+
+.scanner-demo {
+  position: absolute; left: 16px; right: 16px; bottom: calc(100px + var(--safe-bottom));
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  font-size: 13px; color: rgba(255, 255, 255, 0.7);
+}
+.scanner-demo > div { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.scanner-chip {
+  padding: 8px 14px; border-radius: 18px; font-weight: 700; font-size: 13px;
+  background: rgba(127, 140, 255, 0.25); border: 1px solid rgba(160, 170, 255, 0.5); color: #fff;
+}
+.demo-banner {
+  font-size: 12px; color: var(--muted); text-align: center; padding: 2px 0 0;
+}

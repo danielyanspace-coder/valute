@@ -10,7 +10,7 @@ import { QrScannerOverlay } from './components/QrScanner';
 import { RateCard } from './components/RateCard';
 import { RateSheet } from './components/RateSheet';
 import { Sheet } from './components/Sheet';
-import { api, type MarketCoin, type WalletRate } from './lib/api';
+import { api, IS_DEMO, type MarketCoin, type WalletRate } from './lib/api';
 import { parseQr, type ParsedQr } from './lib/qr';
 import { canUseNativeQr, haptic, hapticNotify, tg } from './lib/telegram';
 import { readFlag, usePolling, writeFlag } from './lib/useInterval';
@@ -81,6 +81,11 @@ export function App() {
         <RateCard rate={rate} error={rateError} onOpen={() => { haptic(); setRateOpen(true); }} />
         <CryptoList coins={coins} onAll={() => setSoon('Все криптовалюты')} onCoin={(s) => setSoon(s)} />
         <Promo onOpen={() => setSoon('Переводы')} />
+        {IS_DEMO && rate && (
+          <p className="demo-banner">
+            Демо-версия · курсы Rapira на {new Date(rate.updatedAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
+          </p>
+        )}
       </main>
 
       <BottomNav

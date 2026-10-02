@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import QrScanner from 'qr-scanner';
+import { IS_DEMO } from '../lib/api';
 import { IconClose, IconFlash, IconImage } from './icons';
+
+// Sample codes for the standalone demo, where the camera is unavailable.
+const DEMO_SAMPLES = [
+  { label: 'QR СБП', text: 'https://qr.nspk.ru/AS1000670LSS7DN18SJQDNP4B05KLJL2?type=02&bank=100000000111&sum=150050&cur=RUB' },
+  { label: 'Счёт ЖКХ', text: 'ST00012|Name=ООО «УК Северная»|PersonalAcc=40702810000000000000|Sum=482030|Purpose=Квартплата за сентябрь' },
+  { label: 'Адрес TRC-20', text: 'TV6MuMXfmLbBqPZvBHdwFsDnQeVfnmiuSi' },
+];
 
 interface Props {
   onResult: (text: string) => void;
@@ -88,6 +96,16 @@ export function QrScannerOverlay({ onResult, onClose }: Props) {
         <b>Наведите камеру на QR-код</b>
         <span>{error ?? 'СБП, счёт на оплату или криптоадрес'}</span>
       </div>
+      {IS_DEMO && (
+        <div className="scanner-demo">
+          <span>Демо — нажмите пример:</span>
+          <div>
+            {DEMO_SAMPLES.map((d) => (
+              <button key={d.label} className="scanner-chip" onClick={() => finish(d.text)}>{d.label}</button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="scanner-controls">
         <button className="scanner-ctrl" onClick={() => fileRef.current?.click()}>
           <IconImage /> <span>Из галереи</span>
