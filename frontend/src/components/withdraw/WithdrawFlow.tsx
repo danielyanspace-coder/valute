@@ -18,8 +18,10 @@ import type { WalletRate } from '../../lib/api';
 import { api } from '../../lib/backend';
 import { fmtMicro, fmtRub, fmtRub0 } from '../../lib/format';
 import { haptic, hapticNotify, tg } from '../../lib/telegram';
-import { IconAlert, IconCard, IconChat, IconCheck, IconChevronRight, IconClock, IconWallet } from '../icons';
+import { IconAlert, IconChat, IconCheck, IconChevronRight, IconClock } from '../icons';
 import { Sheet } from '../Sheet';
+import { CoinIcon } from '../CoinIcon';
+import { MirMark, SbpMark, SbpMirMark } from '../brandMarks';
 import { BankAvatar, BankPicker } from './BankPicker';
 
 type Step = 'choose' | 'crypto' | 'card-method' | 'sbp' | 'bank' | 'card' | 'terms' | 'done';
@@ -136,16 +138,18 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
         <div className="option-list">
           {me?.blocked && <Notice tone="danger">Вывод временно недоступен. Напишите в поддержку, мы поможем.</Notice>}
           <Option
-            icon={<IconCard size={20} />}
+            icon={<SbpMirMark />}
+            iconTone="plain"
             title="На банковскую карту"
             subtitle="Рубли по СБП или номеру карты"
             disabled={me?.blocked}
             onClick={() => go('card-method')}
           />
           <Option
-            icon={<IconWallet size={20} />}
+            icon={<CoinIcon symbol="USDT" size={40} />}
+            iconTone="plain"
             title="На криптокошелёк"
-            subtitle="USDT в сетях TRC-20, BEP-20, ERC-20"
+            subtitle="USDT в сети TRON (TRC-20)"
             badge="Скоро"
             onClick={() => go('crypto')}
           />
@@ -156,9 +160,9 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
     case 'crypto':
       body = (
         <div className="soon-block">
-          <span className="soon-icon"><IconWallet size={26} /></span>
+          <CoinIcon symbol="USDT" size={56} />
           <b>Скоро</b>
-          <p className="muted">Вывод USDT на внешний кошелёк появится в ближайшее время. Комиссия сети составит 5 USDT за перевод.</p>
+          <p className="muted">Вывод USDT на внешний кошелёк в сети TRON (TRC-20) появится в ближайшее время. Комиссия составит 5 USDT за перевод.</p>
         </div>
       );
       break;
@@ -167,7 +171,8 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
       body = (
         <div className="option-list">
           <Option
-            icon={<span className="sbp-mark">СБП</span>}
+            icon={<SbpMark size={24} />}
+            iconTone="light"
             title="По СБП"
             subtitle="По номеру телефона в любой банк"
             onClick={() => {
@@ -176,7 +181,8 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
             }}
           />
           <Option
-            icon={<IconCard size={20} />}
+            icon={<MirMark width={32} />}
+            iconTone="light"
             title="По номеру карты"
             subtitle="МИР, Visa, Mastercard российских банков"
             onClick={() => {
@@ -342,10 +348,10 @@ function phoneHint(phone: string, error: string | null): string | null {
   return d.length >= 11 ? error : null;
 }
 
-function Option(props: { icon: ReactNode; title: string; subtitle: string; badge?: string; disabled?: boolean; onClick: () => void }) {
+function Option(props: { icon: ReactNode; iconTone?: 'light' | 'plain'; title: string; subtitle: string; badge?: string; disabled?: boolean; onClick: () => void }) {
   return (
     <button className="option" onClick={props.onClick} disabled={props.disabled}>
-      <span className="option-icon">{props.icon}</span>
+      <span className={`option-icon ${props.iconTone ?? ''}`}>{props.icon}</span>
       <span className="option-text">
         <b>{props.title}</b>
         <span className="muted">{props.subtitle}</span>

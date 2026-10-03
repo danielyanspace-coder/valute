@@ -113,3 +113,11 @@
   .adm-kv { grid-template-columns: 120px minmax(0, 1fr) auto; }
   .adm-timeline li { grid-template-columns: 1fr; gap: 2px; }
 }
+
+.adm-row-main { display: flex; align-items: center; gap: 11px; }
+.adm-row-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.adm-logo-tile { display: grid; place-items: center; flex-shrink: 0; border-radius: 28%; background: #fff; }
+.adm-card-brand { font-size: 9px; font-weight: 800; color: #1a1f2b; }
+.adm-v-wrap.with-icon { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; }
+.adm-v-wrap.with-icon > .adm-muted { grid-column: 2; }
+.adm-mir { display: grid; place-items: center; width: 40px; height: 26px; border-radius: 6px; background: #fff; }

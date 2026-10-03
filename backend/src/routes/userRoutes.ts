@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
-import type { CreateCheckRequest, CreateWithdrawalRequest, MeDto, NotificationDto, SendTransferRequest } from '../../../shared/api.js';
+import type { CreateCheckRequest, CreateWithdrawalRequest, DepositInfoDto, MeDto, NotificationDto, SendTransferRequest } from '../../../shared/api.js';
+import type { UserRepo } from '../users/userRepo.js';
 import type { TransferService } from '../transfers/transferService.js';
 import type { Ledger } from '../ledger/ledger.js';
 import type { NotificationService } from '../notifications/notificationService.js';
@@ -14,6 +15,8 @@ export interface UserRouteDeps {
   supportUsername: string;
   transfers: TransferService;
   botUsername: () => string;
+  users: UserRepo;
+  depositMinUsdt: number;
 }
 
 /** Routes for the Mini App. Registered inside a scope that already runs Telegram auth. */
@@ -79,6 +82,20 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
       };
     });
     return { items };
+  });
+
+  // Deposits are USDT TRC-20 only. Addresses are issued once HD derivation is configured;
+  // until then the app shows the deposit screen with "address is being prepared".
+  app.get('/api/deposit', async (req): Promise<DepositInfoDto> => {
+    const tron = deps.users.depositAddresses(req.user!.id).find((a) => a.chain === 'TRON');
+    return {
+      token: 'USDT',
+      network: 'TRC20',
+      networkName: 'TRON (TRC-20)',
+      address: tron?.address ?? null,
+      minDepositMicro: Math.round(deps.depositMinUsdt * 1_000_000),
+      confirmations: 20,
+    };
   });
 
   app.get('/api/history', async (req) => ({ items: deps.transfers.history(req.user!.id) }));

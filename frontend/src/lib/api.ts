@@ -6,6 +6,7 @@ import type {
   CheckDto,
   CreateCheckRequest,
   CreateWithdrawalRequest,
+  DepositInfoDto,
   HistoryItem,
   PersonDto,
   SendTransferRequest,
@@ -61,6 +62,7 @@ export interface Api {
   notifications(): Promise<{ items: NotificationDto[] }>;
   markNotificationsSeen(ids: number[]): Promise<unknown>;
   history(): Promise<{ items: HistoryItem[] }>;
+  deposit(): Promise<DepositInfoDto>;
   lookupUser(username: string): Promise<PersonDto>;
   sendTransfer(req: SendTransferRequest): Promise<TransferDto>;
   checks(): Promise<{ items: CheckDto[] }>;
@@ -108,6 +110,7 @@ export const httpApi: Api = {
   notifications: () => request('GET', '/api/notifications', userAuth()),
   markNotificationsSeen: (ids) => request('POST', '/api/notifications/seen', userAuth(), { ids }),
   history: () => request('GET', '/api/history', userAuth()),
+  deposit: () => request('GET', '/api/deposit', userAuth()),
   lookupUser: (username) => request('GET', `/api/users/lookup?username=${encodeURIComponent(username)}`, userAuth()),
   sendTransfer: (req) => request('POST', '/api/transfers', userAuth(), req),
   checks: () => request('GET', '/api/checks', userAuth()),

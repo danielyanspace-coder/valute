@@ -29,6 +29,7 @@ export interface AppDeps {
   telegramBotToken: string;
   allowDevAuth: boolean;
   supportUsername: string;
+  depositMinUsdt: number;
   staticDir?: string;
 }
 

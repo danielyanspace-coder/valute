@@ -25,6 +25,19 @@ export interface MeDto {
   botUsername: string;
 }
 
+/** Deposits: USDT on TRON (TRC-20) only. */
+export interface DepositInfoDto {
+  token: 'USDT';
+  network: 'TRC20';
+  networkName: string;
+  /** The user's personal TRON address; null until address generation is set up. */
+  address: string | null;
+  minDepositMicro: number;
+  confirmations: number;
+  /** true in the standalone demo: the address is a fake placeholder. */
+  demo?: boolean;
+}
+
 export interface CreateWithdrawalRequest {
   method: PayoutMethod;
   amountRub: number;
@@ -172,6 +185,8 @@ export interface AdminWithdrawalListItem {
   amountRub: number;
   amountMicro: number;
   destination: string;
+  /** NSPK bank id for SBP payouts, to show the bank logo. */
+  bankId: string | null;
   createdAt: number;
   confirmDeadline: number | null;
   user: { id: number; username: string | null; firstName: string };

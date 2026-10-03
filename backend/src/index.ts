@@ -50,6 +50,7 @@ const app = buildApp({
   telegramBotToken: config.telegramBotToken,
   allowDevAuth: config.allowDevAuth,
   supportUsername: config.supportUsername,
+  depositMinUsdt: config.depositMinUsdt,
 });
 logError = (err) => app.log.error({ err }, 'bot notification failed');
 

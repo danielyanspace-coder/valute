@@ -30,6 +30,8 @@ export const config = {
     ETH: process.env.ETH_RPC_URL || 'https://ethereum-rpc.publicnode.com',
   },
   chainalysisSanctionsApiKey: process.env.CHAINALYSIS_SANCTIONS_API_KEY ?? '',
+  /** Deposits below this are not credited (dust and spam transfers). */
+  depositMinUsdt: num('DEPOSIT_MIN_USDT', 1),
   databasePath: process.env.DATABASE_PATH || 'data/wallet.db',
   /** Support account users are sent to, without "@". */
   supportUsername: (process.env.SUPPORT_USERNAME ?? '').replace(/^@/, ''),

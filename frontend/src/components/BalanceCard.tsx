@@ -21,7 +21,11 @@ export function BalanceCard({ balanceUsd, frozenUsd, hidden, onToggleHidden }: P
         Общий баланс {hidden ? <IconEyeOff size={15} /> : <IconEye size={15} />}
       </button>
       <div className={`balance-amount ${balanceUsd === null ? 'skeleton' : ''}`}>
-        {hidden ? '$ ••••••' : fmtUsd(balanceUsd ?? 0)}
+        {hidden ? (
+          <span className="bal-int">$ ••••••</span>
+        ) : (
+          <BalanceDigits value={balanceUsd ?? 0} />
+        )}
       </div>
       {frozenUsd > 0 && (
         <div className="balance-frozen">
@@ -33,5 +37,21 @@ export function BalanceCard({ balanceUsd, frozenUsd, hidden, onToggleHidden }: P
         <span className="tags">Secure <i>•</i> Fast <i>•</i> Global</span>
       </div>
     </section>
+  );
+}
+
+const whole = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+
+/** Big dollars, smaller cents: the balance is the anchor of the screen. */
+function BalanceDigits({ value }: { value: number }) {
+  const cents = Math.round(value * 100);
+  const int = Math.floor(cents / 100);
+  const frac = String(cents % 100).padStart(2, '0');
+  return (
+    <>
+      <span className="bal-cur">$</span>
+      <span className="bal-int">{whole.format(int)}</span>
+      <span className="bal-frac">.{frac}</span>
+    </>
   );
 }

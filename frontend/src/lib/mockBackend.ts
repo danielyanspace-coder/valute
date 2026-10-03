@@ -101,7 +101,6 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       availableMicro: 250 * USDT_MICRO, frozenMicro: 0, depositedMicro: 400 * USDT_MICRO,
       addresses: [
         { chain: 'TRON', address: 'TQ5NvbPLn7fGQyw3UDcPzC9nK8m2Xh4aRd', createdAt: t0 - 20 * DAY },
-        { chain: 'BSC/ETH', address: '0x7a3F9c2E41b8D06e5A1c9F3b2E8d4C6a1B0f9E27', createdAt: t0 - 9 * DAY },
       ],
     },
     {
@@ -221,7 +220,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
     const u = user(w.userId);
     return {
       id: w.id, status: w.status, method: w.method, amountRub: w.amountRub, amountMicro: w.amountMicro,
-      destination: destination(w), createdAt: w.createdAt, confirmDeadline: w.confirmDeadline,
+      destination: destination(w), bankId: w.bankId, createdAt: w.createdAt, confirmDeadline: w.confirmDeadline,
       user: { id: u.id, username: u.username, firstName: u.firstName },
     };
   };
@@ -364,6 +363,17 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       ];
       return delay({ items: items.sort((a, b) => b.at - a.at) });
     },
+    deposit: () =>
+      delay({
+        token: 'USDT' as const,
+        network: 'TRC20' as const,
+        networkName: 'TRON (TRC-20)',
+        // Deliberately invalid (contains 0 and O, which TRON addresses never have): no wallet will accept it.
+        address: 'T0DEM0ADDRESS0NOT0REAL0O0000000000',
+        minDepositMicro: USDT_MICRO,
+        confirmations: 20,
+        demo: true,
+      }),
     lookupUser: (username) => delay(person(findByUsername(username, me.id).id)),
     sendTransfer: (req) => {
       const dup = transfers.find((t) => t.from === me.id && t.requestId === req.requestId);

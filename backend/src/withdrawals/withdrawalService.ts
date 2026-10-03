@@ -481,6 +481,7 @@ export class WithdrawalService {
       amountRub: w.amount_rub,
       amountMicro: w.amount_micro,
       destination: destination(w),
+      bankId: w.bank_id,
       createdAt: w.created_at,
       confirmDeadline: w.confirm_deadline,
       user: { id: u.id, username: u.username, firstName: u.first_name },

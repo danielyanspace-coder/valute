@@ -19,6 +19,7 @@ import { Sheet } from './components/Sheet';
 import { WithdrawalSheet } from './components/withdraw/WithdrawalSheet';
 import { WithdrawFlow } from './components/withdraw/WithdrawFlow';
 import { TransferFlow } from './components/transfer/TransferFlow';
+import { DepositSheet } from './components/deposit/DepositSheet';
 import { IS_DEMO, type MarketCoin, type WalletRate } from './lib/api';
 import { api } from './lib/backend';
 import { parseQr, type ParsedQr } from './lib/qr';
@@ -40,6 +41,7 @@ export function App() {
   const [rateOpen, setRateOpen] = useState(false);
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
   const [openWithdrawal, setOpenWithdrawal] = useState<number | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [qrResult, setQrResult] = useState<ParsedQr | null>(null);
@@ -80,7 +82,7 @@ export function App() {
     if (id === 'pay') return startScan();
     if (id === 'withdraw') return setWithdrawOpen(true);
     if (id === 'transfer') return setTransferOpen(true);
-    setSoon('Пополнение');
+    setDepositOpen(true);
   };
 
   const toggleHidden = () => {
@@ -162,6 +164,7 @@ export function App() {
         onCreated={refreshAccount}
         onOpenWithdrawal={openW}
       />
+      <DepositSheet open={depositOpen} onClose={() => setDepositOpen(false)} />
       <TransferFlow open={transferOpen} onClose={() => setTransferOpen(false)} me={me} onChanged={refreshAccount} />
       <WithdrawalSheet
         id={openWithdrawal}

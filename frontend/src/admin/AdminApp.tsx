@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { AdminCounts, AdminWithdrawalDto, AdminWithdrawalListItem, WithdrawalEventDto } from '../../../shared/api';
 import { STATUS_LABEL, formatCard, formatRuPhone, isFinal, type WithdrawalStatus } from '../../../shared/payout';
 import { LogoX } from '../components/icons';
+import { MirMark, SbpMark } from '../components/brandMarks';
+import { BankAvatar } from '../components/withdraw/BankPicker';
+import { findBank } from '../../../shared/sbpBanks';
 import { ApiError, IS_DEMO, type AdminApi } from '../lib/api';
 import { adminApi } from '../lib/backend';
 import {
@@ -132,9 +135,14 @@ function Panel({ api, onLogout }: { api: AdminApi; onLogout?: () => void }) {
                 <StatusChip status={w.status} />
                 <span className="adm-row-time">{fmtAgo(w.createdAt)}</span>
               </div>
-              <div className="adm-row-amount">{fmtRub0(w.amountRub)}</div>
-              <div className="adm-row-sub">
-                {w.method === 'sbp' ? 'СБП' : 'Карта'} · {w.destination}
+              <div className="adm-row-main">
+                <PayoutLogo method={w.method} bankId={w.bankId} destination={w.destination} size={34} />
+                <div className="adm-row-text">
+                  <div className="adm-row-amount">{fmtRub0(w.amountRub)}</div>
+                  <div className="adm-row-sub">
+                    {w.method === 'sbp' ? 'СБП' : 'Карта'} · {w.destination}
+                  </div>
+                </div>
               </div>
               <div className="adm-row-sub">
                 {w.user.username ? `@${w.user.username}` : <span className="adm-warn-text">username скрыт</span>} · {w.user.firstName}
@@ -294,12 +302,16 @@ function Detail({ api, id, onBack, onChanged }: { api: AdminApi; id: number; onB
           {d.method === 'sbp' ? (
             <>
               <Row k="Телефон" v={formatRuPhone(d.phone ?? '')} copy={`+${d.phone}`} big />
-              <Row k="Банк" v={d.bankName ?? ''} sub={`ID НСПК ${d.bankId}`} />
+              <Row k="Банк" v={d.bankName ?? ''} sub={`ID НСПК ${d.bankId}`} icon={<PayoutLogo method="sbp" bankId={d.bankId} destination="" size={28} />} />
             </>
           ) : (
             <>
               <Row k="Номер карты" v={formatCard(d.cardNumber ?? '')} copy={d.cardNumber ?? ''} big />
-              <Row k="Платёжная система" v={d.cardBrand ?? 'Не определена'} />
+              <Row
+                k="Платёжная система"
+                v={d.cardBrand ?? 'Не определена'}
+                icon={d.cardBrand === 'МИР' ? <span className="adm-mir"><MirMark width={30} /></span> : undefined}
+              />
             </>
           )}
           <Row k="Сумма к отправке" v={fmtRub0(d.amountRub)} copy={String(d.amountRub)} big />
@@ -431,7 +443,7 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Row(props: { k: string; v: string; sub?: string; copy?: string; href?: string; big?: boolean; mono?: boolean; small?: boolean; tone?: 'ok' | 'warn' | 'danger' }) {
+function Row(props: { k: string; v: string; sub?: string; icon?: ReactNode; copy?: string; href?: string; big?: boolean; mono?: boolean; small?: boolean; tone?: 'ok' | 'warn' | 'danger' }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -446,7 +458,8 @@ function Row(props: { k: string; v: string; sub?: string; copy?: string; href?: 
   return (
     <div className="adm-kv">
       <span className="adm-k">{props.k}</span>
-      <span className="adm-v-wrap">
+      <span className={`adm-v-wrap ${props.icon ? 'with-icon' : ''}`}>
+        {props.icon}
         {props.href ? (
           <a id={`v-${props.k}`} className={cls} href={props.href} target="_blank" rel="noreferrer">{props.v}</a>
         ) : (
@@ -519,5 +532,19 @@ function Adjust({ api, userId, onDone }: { api: AdminApi; userId: number; onDone
         <button className="adm-link" onClick={() => setOpen(false)}>Отмена</button>
       </div>
     </div>
+  );
+}
+
+/** Bank logo for SBP payouts, Mir mark for Mir cards, a neutral card tile otherwise. */
+function PayoutLogo({ method, bankId, destination, size }: { method: 'sbp' | 'card'; bankId: string | null; destination: string; size: number }) {
+  if (method === 'sbp') {
+    const bank = bankId ? findBank(bankId) : undefined;
+    if (bank) return <BankAvatar bank={bank} size={size} />;
+    return <span className="adm-logo-tile" style={{ width: size, height: size }}><SbpMark size={size * 0.62} /></span>;
+  }
+  return (
+    <span className="adm-logo-tile" style={{ width: size, height: size }}>
+      {destination.startsWith('МИР') ? <MirMark width={size * 0.82} /> : <span className="adm-card-brand">{destination.split(' ')[0]}</span>}
+    </span>
   );
 }
