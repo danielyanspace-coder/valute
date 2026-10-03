@@ -12,10 +12,11 @@ interface Props {
   /** Opens a withdrawal; used for "money sent, please confirm" and "rejected". */
   onOpenWithdrawal: (id: number) => void;
   onAnything: () => void;
+  onOpenOrder: (id: number) => void;
 }
 
 /** Polls in-app notifications and turns each into the right screen or modal. */
-export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything }: Props) {
+export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything, onOpenOrder }: Props) {
   const [modal, setModal] = useState<NotificationDto | null>(null);
 
   const poll = useCallback(async () => {
@@ -25,17 +26,19 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
     await api.markNotificationsSeen(items.map((n) => n.id)).catch(() => {});
     onAnything();
     // Show the most important one; the rest are reflected in balances and history.
-    const order = ['contact_support', 'confirm_receipt', 'withdrawal_rejected', 'transfer_received', 'check_claimed', 'withdrawal_completed'];
+    const order = ['contact_support', 'confirm_receipt', 'order_clarify', 'withdrawal_rejected', 'order_rejected', 'order_paid', 'transfer_received', 'check_claimed', 'withdrawal_completed'];
     const top = [...items].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))[0];
     hapticNotify(['withdrawal_completed', 'transfer_received', 'check_claimed'].includes(top.type) ? 'success' : 'warning');
     // contact_support: the blocking screen is driven by /api/me (refreshed above), nothing to show here.
     if (top.type === 'contact_support') return;
+    // Service orders: open the order itself, it shows the status, the question or the reason.
+    if (top.type.startsWith('order_') && top.order) return onOpenOrder(top.order.id);
     if ((top.type === 'confirm_receipt' || top.type === 'withdrawal_rejected') && top.withdrawalId) {
       onOpenWithdrawal(top.withdrawalId);
     } else {
       setModal(top);
     }
-  }, [modal, onAnything, onOpenWithdrawal]);
+  }, [modal, onAnything, onOpenWithdrawal, onOpenOrder]);
 
   usePolling(poll, 5000);
 

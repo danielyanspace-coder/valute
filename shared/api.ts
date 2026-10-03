@@ -1,5 +1,6 @@
 // Data shapes exchanged between the backend, the Mini App and the admin panel.
 import type { PayoutMethod, WithdrawalStatus } from './payout.js';
+import type { FineInfo, OrderStatus, ServiceKind } from './services.js';
 
 export interface MeDto {
   user: {
@@ -77,7 +78,10 @@ export type NotificationType =
   | 'withdrawal_completed'
   | 'withdrawal_rejected'
   | 'transfer_received'
-  | 'check_claimed';
+  | 'check_claimed'
+  | 'order_paid'
+  | 'order_rejected'
+  | 'order_clarify';
 
 export interface NotificationDto {
   id: number;
@@ -87,6 +91,8 @@ export interface NotificationDto {
   transfer?: TransferDto | null;
   /** check_claimed: the sender's check that was just activated. */
   check?: CheckDto | null;
+  /** order_*: the service order whose status changed. */
+  order?: ServiceOrderDto | null;
   createdAt: number;
 }
 
@@ -137,8 +143,59 @@ export interface CreateCheckRequest {
   requestId: string;
 }
 
+// ---------- Services (fines, parking, Steam) ----------
+
+export interface ServicesConfigDto {
+  discountPercent: number;
+  /** RUB per 1 USDT for services, already including the discount. */
+  serviceRate: number;
+  /** false until a fines data provider is configured: the user types the amount from the ruling. */
+  fineLookupAvailable: boolean;
+  steam: { minRub: number; maxRub: number };
+  parking: { minRub: number; maxRub: number };
+}
+
+export type FineLookupDto = { found: true; fine: FineInfo } | { found: false; manual: boolean; message: string };
+
+export interface CreateOrderRequest {
+  kind: ServiceKind;
+  requestId: string;
+  /** fine */
+  uin?: string;
+  /** fine without a data provider, parking: rubles to pay */
+  amountRub?: number;
+  /** parking: phone of the parking account */
+  phone?: string;
+  /** steam */
+  steamLogin?: string;
+  /** steam: USDT the user spends */
+  amountUsdt?: string;
+  acceptedTerms: true;
+}
+
+export interface ServiceOrderDto {
+  id: number;
+  kind: ServiceKind;
+  status: OrderStatus;
+  amountRub: number;
+  amountMicro: number;
+  rate: number;
+  discountPercent: number;
+  /** How much the user saved vs. the exchange price, in rubles. */
+  benefitRub: number;
+  /** "УИН 1881…", "+7 912 …", "Логин steam_user" */
+  target: string;
+  fine: FineInfo | null;
+  /** Operator's question when status is "clarify". */
+  clarifyMessage: string | null;
+  rejectReason: string | null;
+  createdAt: number;
+  finishedAt: number | null;
+}
+
 export type HistoryItem =
   | { type: 'withdrawal'; at: number; withdrawal: WithdrawalDto }
+  | { type: 'order'; at: number; order: ServiceOrderDto }
   | { type: 'transfer'; at: number; transfer: TransferDto }
   | { type: 'check'; at: number; check: CheckDto };
 
@@ -225,5 +282,44 @@ export interface AdminCounts {
   sent: number;
   disputed: number;
   completed: number;
+  rejected: number;
+}
+
+export interface AdminOrderListItem {
+  id: number;
+  kind: ServiceKind;
+  status: OrderStatus;
+  amountRub: number;
+  amountMicro: number;
+  target: string;
+  createdAt: number;
+  user: { id: number; username: string | null; firstName: string; telegramId: number };
+}
+
+export interface AdminOrderDto extends AdminOrderListItem {
+  rate: number;
+  exchangeRate: number;
+  discountPercent: number;
+  benefitRub: number;
+  fine: FineInfo | null;
+  /** fine: whether the amount came from the data provider or was typed by the user. */
+  amountSource: 'provider' | 'user' | null;
+  phone: string | null;
+  steamLogin: string | null;
+  clarifyMessage: string | null;
+  rejectReason: string | null;
+  finishedAt: number | null;
+  balanceBeforeMicro: number;
+  clientIp: string | null;
+  platform: string | null;
+  events: WithdrawalEventDto[];
+  userDetails: AdminUserDto;
+  serverNow: number;
+}
+
+export interface AdminOrderCounts {
+  pending: number;
+  clarify: number;
+  paid: number;
   rejected: number;
 }

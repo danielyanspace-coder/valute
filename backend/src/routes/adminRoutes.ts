@@ -4,6 +4,8 @@ import { USDT_MICRO } from '../../../shared/payout.js';
 import type { AmlService } from '../aml/amlService.js';
 import type { Chain } from '../aml/types.js';
 import type { UserRepo } from '../users/userRepo.js';
+import type { OrderService } from '../orders/orderService.js';
+import type { OrderStatus } from '../../../shared/services.js';
 import type { WithdrawalService } from '../withdrawals/withdrawalService.js';
 
 const CHAINS: Chain[] = ['TRON', 'BSC', 'ETH', 'TON'];
@@ -13,6 +15,7 @@ export interface AdminRouteDeps {
   withdrawals: WithdrawalService;
   users: UserRepo;
   aml: AmlService;
+  orders: OrderService;
 }
 
 /** Routes for the admin panel. Registered inside a scope that already checks the admin token. */
@@ -38,6 +41,24 @@ export function adminRoutes(app: FastifyInstance, deps: AdminRouteDeps) {
   action('reject', (id, b) => withdrawals.reject(id, String(b.reason ?? '')));
   action('request-contact', (id) => withdrawals.requestContact(id));
   action('note', (id, b) => withdrawals.addNote(id, String(b.text ?? '')));
+
+  // ---------- МК: service orders ----------
+  const ORDER_STATUSES: (OrderStatus | 'all')[] = ['pending', 'clarify', 'paid', 'rejected', 'all'];
+  app.get<{ Querystring: { status?: string } }>('/api/admin/orders', async (req) => {
+    const s = ORDER_STATUSES.includes(req.query.status as OrderStatus) ? (req.query.status as OrderStatus) : 'all';
+    return { items: deps.orders.adminList(s), counts: deps.orders.counts() };
+  });
+  app.get<{ Params: { id: string } }>('/api/admin/orders/:id', async (req) => deps.orders.adminGet(Number(req.params.id)));
+  const orderAction = (path: string, run: (id: number, body: Record<string, unknown>) => unknown) =>
+    app.post<{ Params: { id: string }; Body: Record<string, unknown> }>(`/api/admin/orders/:id/${path}`, async (req) => {
+      const id = Number(req.params.id);
+      run(id, req.body ?? {});
+      return deps.orders.adminGet(id);
+    });
+  orderAction('paid', (id) => deps.orders.markPaid(id));
+  orderAction('clarify', (id, b) => deps.orders.clarify(id, String(b.message ?? '')));
+  orderAction('reject', (id, b) => deps.orders.reject(id, String(b.reason ?? '')));
+  orderAction('note', (id, b) => deps.orders.addNote(id, String(b.text ?? '')));
 
   app.get<{ Params: { id: string } }>('/api/admin/users/:id', async (req) => withdrawals.adminUser(Number(req.params.id)));
 

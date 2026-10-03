@@ -6,7 +6,11 @@ import type {
   AdminUserDto,
   AdminWithdrawalDto,
   AdminWithdrawalListItem,
+  AdminOrderCounts,
+  AdminOrderDto,
+  AdminOrderListItem,
   CheckDto,
+  ServiceOrderDto,
   CreateWithdrawalRequest,
   HistoryItem,
   PersonDto,
@@ -36,6 +40,12 @@ import {
 } from '../../../shared/payout';
 import { findBank } from '../../../shared/sbpBanks';
 import { checkLink, cleanComment, isValidUsername, normalizeUsername, parseUsdt } from '../../../shared/transfers';
+import {
+  SERVICE_TITLE, STEAM_MAX_RUB, STEAM_MIN_RUB, MAX_PARKING_RUB, MIN_PARKING_RUB, fineDueRub, formatParkingPhone, nextOrderStatus,
+  normalizeParkingPhone, normalizeUin, rubForServiceMicro, serviceMicroForRub, serviceRate, validateParkingAmount,
+  validateParkingPhone, validateSteamLogin, validateSteamRub, validateUin, type FineInfo, type OrderAction, type OrderStatus,
+  type ServiceKind,
+} from '../../../shared/services';
 import { ApiError, type AdminApi, type Api, type MarketCoin, type WalletRate } from './api';
 
 interface MockUser {
@@ -120,6 +130,26 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
   const checks: MockCheck[] = [];
   const transfers: MockTransfer[] = [];
   const BOT = 'cryptoix_bot';
+  interface MockOrder {
+    id: number; userId: number; requestId: string; kind: ServiceKind; status: OrderStatus; amountRub: number; amountMicro: number;
+    rate: number; exchangeRate: number; discountPercent: number; uin: string | null; fine: FineInfo | null;
+    amountSource: 'provider' | 'user' | null; phone: string | null; steamLogin: string | null; clarifyMessage: string | null;
+    rejectReason: string | null; balanceBeforeMicro: number; createdAt: number; finishedAt: number | null; events: WithdrawalEventDto[];
+  }
+  const orders: MockOrder[] = [];
+  const DISCOUNT = 10;
+  // Demo stand-in for the Rapira price behind the wallet rate.
+  const exchange = () => Math.round((snapshot.rate.walletRate / 1.05) * 100) / 100;
+  const sRate = () => serviceRate(exchange(), DISCOUNT);
+  /** Demo fines database: any valid UIN is a speeding fine, UINs ending in 0000 are "already paid". */
+  const demoFine = (uin: string): FineInfo | null => {
+    if (uin.endsWith('0000')) return null;
+    const issued = Date.now() - 6 * 24 * 60 * 60 * 1000;
+    return {
+      uin, amountRub: 1000, discountedAmountRub: 500, discountUntil: issued + 20 * 24 * 60 * 60 * 1000, issuedAt: issued,
+      article: 'ч. 2 ст. 12.9 КоАП РФ', description: 'Превышение установленной скорости на 20-40 км/ч',
+    };
+  };
   const withdrawals: MockWithdrawal[] = [];
   const notifications: (NotificationDto & { userId: number; seen: boolean })[] = [];
   let transferId = 1;
@@ -276,6 +306,47 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
 
   const me = users[0];
 
+  const orderTarget = (o: MockOrder) =>
+    o.kind === 'fine' ? `УИН ${o.uin}` : o.kind === 'parking' ? formatParkingPhone(o.phone ?? '') : `Логин ${o.steamLogin}`;
+  const orderBenefit = (o: MockOrder) => Math.max(0, Math.round(o.amountRub - (o.amountMicro / USDT_MICRO) * o.exchangeRate));
+  const orderDto = (o: MockOrder): ServiceOrderDto => ({
+    id: o.id, kind: o.kind, status: o.status, amountRub: o.amountRub, amountMicro: o.amountMicro, rate: o.rate,
+    discountPercent: o.discountPercent, benefitRub: orderBenefit(o), target: orderTarget(o), fine: o.fine,
+    clarifyMessage: o.status === 'clarify' ? o.clarifyMessage : null, rejectReason: o.rejectReason, createdAt: o.createdAt, finishedAt: o.finishedAt,
+  });
+  const orderItem = (o: MockOrder): AdminOrderListItem => {
+    const u = user(o.userId);
+    return { id: o.id, kind: o.kind, status: o.status, amountRub: o.amountRub, amountMicro: o.amountMicro, target: orderTarget(o),
+      createdAt: o.createdAt, user: { id: u.id, username: u.username, firstName: u.firstName, telegramId: u.telegramId } };
+  };
+  const orderAdmin = (id: number): AdminOrderDto => {
+    const o = orders.find((x) => x.id === id) ?? fail(404, 'Заявка не найдена');
+    return { ...orderItem(o), rate: o.rate, exchangeRate: o.exchangeRate, discountPercent: o.discountPercent, benefitRub: orderBenefit(o),
+      fine: o.fine, amountSource: o.amountSource, phone: o.phone, steamLogin: o.steamLogin, clarifyMessage: o.clarifyMessage,
+      rejectReason: o.rejectReason, finishedAt: o.finishedAt, balanceBeforeMicro: o.balanceBeforeMicro, clientIp: '185.12.64.7 (демо)',
+      platform: 'demo', events: o.events, userDetails: adminUser(o.userId), serverNow: now() };
+  };
+  const orderMove = (id: number, action: OrderAction) => {
+    const o = orders.find((x) => x.id === id) ?? fail(404, 'Заявка не найдена');
+    const to = nextOrderStatus(o.status, action);
+    if (!to) fail(409, 'Действие недоступно в текущем статусе');
+    o.status = to!;
+    return o;
+  };
+  const addOrder = (u: MockUser, p: Omit<MockOrder, 'id' | 'userId' | 'status' | 'rate' | 'exchangeRate' | 'discountPercent' | 'balanceBeforeMicro' | 'finishedAt' | 'events' | 'clarifyMessage' | 'rejectReason'>) => {
+    if (p.amountMicro > u.availableMicro) fail(400, 'Недостаточно средств');
+    const o: MockOrder = { ...p, id: 501 + orders.length, userId: u.id, status: 'pending', rate: sRate(), exchangeRate: exchange(),
+      discountPercent: DISCOUNT, balanceBeforeMicro: u.availableMicro, finishedAt: null, events: [], clarifyMessage: null, rejectReason: null };
+    u.availableMicro -= o.amountMicro;
+    u.frozenMicro += o.amountMicro;
+    orders.push(o);
+    o.events.push({ id: eventId++, at: o.createdAt, actor: 'user', type: 'created', data: { amountRub: o.amountRub, amountMicro: o.amountMicro, rate: o.rate } });
+    return o;
+  };
+  // Seed: a pending Steam top-up from another user, so the МК queue is not empty.
+  addOrder(users[1], { requestId: 'seed-steam', kind: 'steam', amountRub: 1500, amountMicro: serviceMicroForRub(1500, sRate()),
+    uin: null, fine: null, amountSource: null, phone: null, steamLogin: 'ivan_k_pro', createdAt: t0 - 3 * MIN });
+
   const contactLock = (userId: number) => {
     const w = [...withdrawals].reverse().find((x) => x.userId === userId && x.contactRequestedAt && !isFinal(x.status));
     return w ? { withdrawalId: w.id, amountRub: w.amountRub } : null;
@@ -352,7 +423,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       delay({
         items: notifications
           .filter((n) => n.userId === me.id && !n.seen)
-          .map(({ id, type, withdrawalId, createdAt, transfer, check }) => ({ id, type, withdrawalId, createdAt, transfer, check })),
+          .map(({ id, type, withdrawalId, createdAt, transfer, check, order }) => ({ id, type, withdrawalId, createdAt, transfer, check, order })),
       }),
     markNotificationsSeen: (ids) => {
       for (const n of notifications) if (ids.includes(n.id)) n.seen = true;
@@ -365,6 +436,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
           .filter((t) => t.to === me.id || (t.from === me.id && t.kind === 'direct'))
           .map((t): HistoryItem => ({ type: 'transfer', at: t.createdAt, transfer: transferDto(t, me.id) })),
         ...checks.filter((c) => c.creatorId === me.id).map((c): HistoryItem => ({ type: 'check', at: c.createdAt, check: checkDto(c) })),
+        ...orders.filter((o) => o.userId === me.id).map((o): HistoryItem => ({ type: 'order', at: o.createdAt, order: orderDto(o) })),
       ];
       return delay({ items: items.sort((a, b) => b.at - a.at) });
     },
@@ -379,6 +451,48 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
         confirmations: 20,
         demo: true,
       }),
+    servicesConfig: () =>
+      delay({ discountPercent: DISCOUNT, serviceRate: sRate(), fineLookupAvailable: true,
+        steam: { minRub: STEAM_MIN_RUB, maxRub: STEAM_MAX_RUB }, parking: { minRub: MIN_PARKING_RUB, maxRub: MAX_PARKING_RUB } }),
+    lookupFine: (uin) => {
+      const e = validateUin(uin);
+      if (e) fail(400, e);
+      const fine = demoFine(normalizeUin(uin));
+      return delay(fine ? { found: true as const, fine } : { found: false as const, manual: false, message: 'Штраф с таким УИН не найден или уже оплачен' });
+    },
+    createOrder: (req) => {
+      const dup = orders.find((o) => o.userId === me.id && o.requestId === req.requestId);
+      if (dup) return delay(orderDto(dup));
+      if (me.blocked) fail(403, 'Операции недоступны. Свяжитесь с поддержкой');
+      assertNotLocked(me.id);
+      const rate = sRate();
+      const base = { requestId: req.requestId, kind: req.kind, uin: null, fine: null, amountSource: null, phone: null, steamLogin: null, createdAt: now() };
+      let o: MockOrder;
+      if (req.kind === 'fine') {
+        const e = validateUin(req.uin ?? '');
+        if (e) fail(400, e);
+        const fine = demoFine(normalizeUin(req.uin!)) ?? fail(404, 'Штраф с таким УИН не найден или уже оплачен');
+        const rub = fineDueRub(fine);
+        o = addOrder(me, { ...base, uin: fine.uin, fine, amountSource: 'provider', amountRub: rub, amountMicro: serviceMicroForRub(rub, rate) });
+      } else if (req.kind === 'parking') {
+        const e = validateParkingPhone(req.phone ?? '') ?? validateParkingAmount(Number(req.amountRub));
+        if (e) fail(400, e);
+        o = addOrder(me, { ...base, phone: normalizeParkingPhone(req.phone!), amountRub: Number(req.amountRub), amountMicro: serviceMicroForRub(Number(req.amountRub), rate) });
+      } else {
+        const e = validateSteamLogin(req.steamLogin ?? '');
+        if (e) fail(400, e);
+        const micro = amountOf(req.amountUsdt ?? '');
+        const rub = rubForServiceMicro(micro, rate);
+        const re = validateSteamRub(rub);
+        if (re) fail(400, re);
+        o = addOrder(me, { ...base, steamLogin: req.steamLogin!.trim(), amountRub: rub, amountMicro: micro });
+      }
+      return delay(orderDto(o));
+    },
+    order: (id) => {
+      const o = orders.find((x) => x.id === id && x.userId === me.id) ?? fail(404, 'Заявка не найдена');
+      return delay(orderDto(o));
+    },
     lookupUser: (username) => delay(person(findByUsername(username, me.id).id)),
     sendTransfer: (req) => {
       const dup = transfers.find((t) => t.from === me.id && t.requestId === req.requestId);
@@ -502,6 +616,46 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
     setBlocked: (userId, blocked) => {
       user(userId).blocked = blocked;
       return delay(adminUser(userId));
+    },
+    orders: (status) => {
+      const c: AdminOrderCounts = { pending: 0, clarify: 0, paid: 0, rejected: 0 };
+      for (const o of orders) c[o.status]++;
+      return delay({ items: orders.filter((o) => status === 'all' || o.status === status).slice().reverse().map(orderItem), counts: c });
+    },
+    orderGet: (id) => delay(orderAdmin(id)),
+    orderPaid: (id) => {
+      const o = orderMove(id, 'paid');
+      user(o.userId).frozenMicro -= o.amountMicro;
+      o.finishedAt = now();
+      o.events.push({ id: eventId++, at: now(), actor: 'admin', type: 'paid', data: {} });
+      notify(o.userId, 'order_paid', null, { order: orderDto(o) });
+      return delay(orderAdmin(id));
+    },
+    orderClarify: (id, message) => {
+      if (!message.trim()) fail(400, 'Напишите, что нужно уточнить');
+      const o = orderMove(id, 'clarify');
+      o.clarifyMessage = message.trim();
+      o.events.push({ id: eventId++, at: now(), actor: 'admin', type: 'clarify', data: { message: o.clarifyMessage } });
+      notify(o.userId, 'order_clarify', null, { order: orderDto(o) });
+      return delay(orderAdmin(id));
+    },
+    orderReject: (id, reason) => {
+      if (!reason.trim()) fail(400, 'Укажите причину отклонения');
+      const o = orderMove(id, 'reject');
+      const u = user(o.userId);
+      u.frozenMicro -= o.amountMicro;
+      u.availableMicro += o.amountMicro;
+      o.finishedAt = now();
+      o.rejectReason = reason.trim();
+      o.events.push({ id: eventId++, at: now(), actor: 'admin', type: 'rejected', data: { reason: o.rejectReason } });
+      notify(o.userId, 'order_rejected', null, { order: orderDto(o) });
+      return delay(orderAdmin(id));
+    },
+    orderNote: (id, text) => {
+      if (!text.trim()) fail(400, 'Пустая заметка');
+      const o = orders.find((x) => x.id === id) ?? fail(404, 'Заявка не найдена');
+      o.events.push({ id: eventId++, at: now(), actor: 'admin', type: 'note', data: { text: text.trim() } });
+      return delay(orderAdmin(id));
     },
   };
 

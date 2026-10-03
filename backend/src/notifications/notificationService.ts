@@ -17,6 +17,7 @@ export interface NotifyRef {
   withdrawal?: { id: number; amount_rub: number };
   transferId?: number;
   checkId?: number;
+  orderId?: number;
   /** Bot message text; withdrawal notifications have a default. null = in-app only. */
   botText?: string | null;
 }
@@ -27,6 +28,7 @@ export interface StoredNotification {
   withdrawalId: number | null;
   transferId: number | null;
   checkId: number | null;
+  orderId: number | null;
   createdAt: number;
 }
 
@@ -46,8 +48,8 @@ export class NotificationService {
     // Backwards-compatible shorthand: notify(user, type, withdrawalRow)
     const r: NotifyRef = 'amount_rub' in ref ? { withdrawal: ref } : ref;
     this.db
-      .prepare('INSERT INTO notifications (user_id, type, withdrawal_id, transfer_id, check_id, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(user.id, type, r.withdrawal?.id ?? null, r.transferId ?? null, r.checkId ?? null, this.now());
+      .prepare('INSERT INTO notifications (user_id, type, withdrawal_id, transfer_id, check_id, order_id, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .run(user.id, type, r.withdrawal?.id ?? null, r.transferId ?? null, r.checkId ?? null, r.orderId ?? null, this.now());
     const text =
       r.botText !== undefined
         ? r.botText
@@ -60,7 +62,7 @@ export class NotificationService {
   unseen(userId: number): StoredNotification[] {
     return this.db
       .prepare(
-        `SELECT id, type, withdrawal_id AS withdrawalId, transfer_id AS transferId, check_id AS checkId, created_at AS createdAt
+        `SELECT id, type, withdrawal_id AS withdrawalId, transfer_id AS transferId, check_id AS checkId, order_id AS orderId, created_at AS createdAt
          FROM notifications WHERE user_id = ? AND seen_at IS NULL ORDER BY id`,
       )
       .all(userId) as unknown as StoredNotification[];

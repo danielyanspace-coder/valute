@@ -22,6 +22,8 @@ import { WithdrawalSheet } from './components/withdraw/WithdrawalSheet';
 import { WithdrawFlow } from './components/withdraw/WithdrawFlow';
 import { TransferFlow } from './components/transfer/TransferFlow';
 import { DepositSheet } from './components/deposit/DepositSheet';
+import { OrderSheet, ServiceFlow } from './components/services/ServiceFlows';
+import type { ServiceKind } from '../../shared/services';
 import { IS_DEMO, type MarketCoin, type WalletRate } from './lib/api';
 import { api } from './lib/backend';
 import { parseQr, type ParsedQr } from './lib/qr';
@@ -44,6 +46,8 @@ export function App() {
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
+  const [service, setService] = useState<ServiceKind | null>(null);
+  const [openOrder, setOpenOrder] = useState<number | null>(null);
   const [openWithdrawal, setOpenWithdrawal] = useState<number | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [qrResult, setQrResult] = useState<ParsedQr | null>(null);
@@ -142,12 +146,12 @@ export function App() {
           </>
         )}
 
-        {tab === 'services' && <ServicesScreen onDeposit={() => setDepositOpen(true)} onWithdraw={() => setWithdrawOpen(true)} />}
+        {tab === 'services' && <ServicesScreen onDeposit={() => setDepositOpen(true)} onWithdraw={() => setWithdrawOpen(true)} onService={setService} />}
 
         {tab === 'profile' && <ProfileScreen me={me} onUnavailableSupport={() => setSoon('Поддержка')} />}
 
         {tab === 'history' && (
-          <HistoryScreen items={history} loading={historyLoading} onOpenWithdrawal={setOpenWithdrawal} onOpenChecks={() => setTransferOpen(true)} />
+          <HistoryScreen items={history} loading={historyLoading} onOpenWithdrawal={setOpenWithdrawal} onOpenChecks={() => setTransferOpen(true)} onOpenOrder={setOpenOrder} />
         )}
       </main>
 
@@ -171,6 +175,14 @@ export function App() {
         onOpenWithdrawal={openW}
       />
       <DepositSheet open={depositOpen} onClose={() => setDepositOpen(false)} />
+      <ServiceFlow
+        kind={service}
+        onClose={() => setService(null)}
+        me={me}
+        onCreated={refreshAccount}
+        onOpenOrder={(id) => { setService(null); setOpenOrder(id); }}
+      />
+      <OrderSheet id={openOrder} onClose={() => setOpenOrder(null)} supportUsername={support} />
       <TransferFlow open={transferOpen} onClose={() => setTransferOpen(false)} me={me} onChanged={refreshAccount} />
       <WithdrawalSheet
         id={openWithdrawal}
@@ -179,7 +191,7 @@ export function App() {
         supportUsername={support}
         usernameHidden={!!me && !me.user.username}
       />
-      <NotificationHost supportUsername={support} onOpenWithdrawal={openW} onAnything={refreshAccount} />
+      <NotificationHost supportUsername={support} onOpenWithdrawal={openW} onAnything={refreshAccount} onOpenOrder={setOpenOrder} />
       {me?.contactLock && <ContactLock lock={me.contactLock} supportUsername={support} />}
       {scannerOpen && <QrScannerOverlay onResult={handleScanned} onClose={() => setScannerOpen(false)} />}
       <QrResultSheet result={qrResult} qrPayRate={rate?.qrPayRate ?? null} onClose={() => setQrResult(null)} onRescan={startScan} />

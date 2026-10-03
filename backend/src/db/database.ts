@@ -150,6 +150,49 @@ const MIGRATIONS: string[] = [
   ALTER TABLE notifications ADD COLUMN transfer_id INTEGER;
   ALTER TABLE notifications ADD COLUMN check_id INTEGER;
   `,
+  `
+  -- Service orders (fines, parking, Steam): paid in USDT, fulfilled by the operator by hand ("МК").
+  CREATE TABLE service_orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    request_id TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('fine', 'parking', 'steam')),
+    status TEXT NOT NULL CHECK (status IN ('pending', 'clarify', 'paid', 'rejected')),
+    amount_rub INTEGER NOT NULL,
+    amount_micro INTEGER NOT NULL,
+    rate REAL NOT NULL,
+    exchange_rate REAL NOT NULL,
+    discount_percent REAL NOT NULL,
+    uin TEXT,
+    fine_json TEXT,
+    amount_source TEXT,
+    phone TEXT,
+    steam_login TEXT,
+    clarify_message TEXT,
+    reject_reason TEXT,
+    balance_before_micro INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    finished_at INTEGER,
+    client_ip TEXT,
+    platform TEXT,
+    UNIQUE (user_id, request_id)
+  );
+  CREATE INDEX service_orders_status ON service_orders(status, created_at);
+  CREATE INDEX service_orders_user ON service_orders(user_id, created_at);
+
+  CREATE TABLE service_order_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL REFERENCES service_orders(id),
+    at INTEGER NOT NULL,
+    actor TEXT NOT NULL,
+    type TEXT NOT NULL,
+    data TEXT
+  );
+  CREATE INDEX service_order_events_o ON service_order_events(order_id);
+
+  ALTER TABLE notifications ADD COLUMN order_id INTEGER;
+  `,
 ];
 
 export type Db = DatabaseSync;

@@ -15,6 +15,8 @@ import type { UserRepo } from './users/userRepo.js';
 import { AppError, type WithdrawalService } from './withdrawals/withdrawalService.js';
 import { renderCheckJpeg } from './checks/checkImage.js';
 import type { TransferService } from './transfers/transferService.js';
+import type { OrderService } from './orders/orderService.js';
+import type { FineLookup } from './orders/fineLookup.js';
 
 export interface AppDeps {
   rates: RateService;
@@ -24,6 +26,9 @@ export interface AppDeps {
   withdrawals: WithdrawalService;
   notifications: NotificationService;
   transfers: TransferService;
+  orders: OrderService;
+  fineLookup: FineLookup;
+  servicesDiscountPercent: number;
   botUsername: () => string;
   adminToken: string;
   telegramBotToken: string;

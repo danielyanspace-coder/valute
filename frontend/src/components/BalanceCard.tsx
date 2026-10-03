@@ -29,7 +29,7 @@ export function BalanceCard({ balanceUsd, frozenUsd, hidden, onToggleHidden }: P
       </div>
       {frozenUsd > 0 && (
         <div className="balance-frozen">
-          <IconSnow size={13} /> {hidden ? '••••' : fmtUsd(frozenUsd)} заморожено в выводах и чеках
+          <IconSnow size={13} /> {hidden ? '••••' : fmtUsd(frozenUsd)} заморожено в заявках и чеках
         </div>
       )}
       <div className="balance-foot">

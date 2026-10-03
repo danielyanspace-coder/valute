@@ -1,5 +1,7 @@
 import type { HistoryItem } from '../../../shared/api';
 import { STATUS_LABEL } from '../../../shared/payout';
+import { ORDER_STATUS_LABEL, SERVICE_TITLE } from '../../../shared/services';
+import { SERVICE_LOGO } from './services/ServiceFlows';
 import { shortUsdt } from '../../../shared/transfers';
 import { fmtDateTime, fmtRub0 } from '../lib/format';
 import { IconArrowUpRight, IconCard, IconHistory, IconPlus } from './icons';
@@ -12,9 +14,10 @@ interface Props {
   loading: boolean;
   onOpenWithdrawal: (id: number) => void;
   onOpenChecks: () => void;
+  onOpenOrder: (id: number) => void;
 }
 
-export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks }: Props) {
+export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks, onOpenOrder }: Props) {
   return (
     <section className="history">
       <h2 className="screen-title">История</h2>
@@ -45,6 +48,14 @@ export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks }
                   title={incoming ? (t.kind === 'check' ? 'Получен чек' : 'Получен перевод') : 'Перевод'}
                   sub={`${incoming ? 'от' : 'для'} ${who(t.counterparty)}${t.comment ? ` · ${t.comment}` : ''}`}
                   amount={`${incoming ? '+' : '−'}${shortUsdt(t.amountMicro)} USDT`} amountClass={incoming ? 'up' : ''} at={t.createdAt} />
+              );
+            }
+            if (h.type === 'order') {
+              const o = h.order;
+              return (
+                <Row key={`o${o.id}`} icon={<img src={SERVICE_LOGO[o.kind]} alt="" />} iconClass="svc" title={SERVICE_TITLE[o.kind]}
+                  sub={o.target} amount={`−${shortUsdt(o.amountMicro)} USDT`} chip={ORDER_STATUS_LABEL[o.status]} chipClass={`o-${o.status}`}
+                  at={o.createdAt} onClick={() => onOpenOrder(o.id)} />
               );
             }
             const c = h.check;

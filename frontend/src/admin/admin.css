@@ -121,3 +121,13 @@
 .adm-v-wrap.with-icon { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; }
 .adm-v-wrap.with-icon > .adm-muted { grid-column: 2; }
 .adm-mir { display: grid; place-items: center; width: 40px; height: 26px; border-radius: 6px; background: #fff; }
+
+.adm-top { gap: 16px; }
+.adm-sections { display: flex; gap: 4px; padding: 3px; border-radius: 12px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); margin-right: auto; }
+.adm-sections button { height: 32px; padding: 0 16px; border-radius: 9px; font-weight: 700; color: var(--muted); }
+.adm-sections button.active { background: var(--accent); color: #fff; }
+.adm-btn.contact { display: inline-flex; align-items: center; text-decoration: none; color: #fff; background: linear-gradient(180deg, #2aabee, #229ed9); border-color: transparent; }
+.adm-svc-logo { width: 34px; height: 34px; border-radius: 10px; object-fit: contain; background: #fff; flex-shrink: 0; }
+.adm-svc-logo.k-steam { background: #1b2838; padding: 3px; }
+.adm-svc-logo.k-parking { object-fit: cover; }
+.adm-d-title .adm-svc-logo { width: 28px; height: 28px; border-radius: 8px; }

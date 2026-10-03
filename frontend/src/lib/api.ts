@@ -3,7 +3,14 @@ import type {
   AdminUserDto,
   AdminWithdrawalDto,
   AdminWithdrawalListItem,
+  AdminOrderCounts,
+  AdminOrderDto,
+  AdminOrderListItem,
   CheckDto,
+  CreateOrderRequest,
+  FineLookupDto,
+  ServiceOrderDto,
+  ServicesConfigDto,
   CreateCheckRequest,
   CreateWithdrawalRequest,
   DepositInfoDto,
@@ -16,6 +23,7 @@ import type {
   WithdrawalDto,
 } from '../../../shared/api';
 import type { WithdrawalStatus } from '../../../shared/payout';
+import type { OrderStatus } from '../../../shared/services';
 import { tg } from './telegram';
 
 export interface RatePoint {
@@ -68,6 +76,10 @@ export interface Api {
   checks(): Promise<{ items: CheckDto[] }>;
   createCheck(req: CreateCheckRequest): Promise<CheckDto>;
   cancelCheck(id: number): Promise<CheckDto>;
+  servicesConfig(): Promise<ServicesConfigDto>;
+  lookupFine(uin: string): Promise<FineLookupDto>;
+  createOrder(req: CreateOrderRequest & { platform?: string }): Promise<ServiceOrderDto>;
+  order(id: number): Promise<ServiceOrderDto>;
   /** Demo only: pretend a friend pressed "Получить" on the check. */
   demoClaimCheck?(code: string): Promise<unknown>;
 }
@@ -82,6 +94,12 @@ export interface AdminApi {
   note(id: number, text: string): Promise<AdminWithdrawalDto>;
   adjustBalance(userId: number, amountUsdt: number, comment: string): Promise<AdminUserDto>;
   setBlocked(userId: number, blocked: boolean): Promise<AdminUserDto>;
+  orders(status: OrderStatus | 'all'): Promise<{ items: AdminOrderListItem[]; counts: AdminOrderCounts }>;
+  orderGet(id: number): Promise<AdminOrderDto>;
+  orderPaid(id: number): Promise<AdminOrderDto>;
+  orderClarify(id: number, message: string): Promise<AdminOrderDto>;
+  orderReject(id: number, reason: string): Promise<AdminOrderDto>;
+  orderNote(id: number, text: string): Promise<AdminOrderDto>;
 }
 
 async function request<T>(method: string, path: string, auth: string | undefined, body?: unknown): Promise<T> {
@@ -116,6 +134,10 @@ export const httpApi: Api = {
   checks: () => request('GET', '/api/checks', userAuth()),
   createCheck: (req) => request('POST', '/api/checks', userAuth(), req),
   cancelCheck: (id) => request('POST', `/api/checks/${id}/cancel`, userAuth(), {}),
+  servicesConfig: () => request('GET', '/api/services/config', userAuth()),
+  lookupFine: (uin) => request('GET', `/api/fines/lookup?uin=${encodeURIComponent(uin)}`, userAuth()),
+  createOrder: (req) => request('POST', '/api/orders', userAuth(), req),
+  order: (id) => request('GET', `/api/orders/${id}`, userAuth()),
 };
 
 export function httpAdminApi(token: string): AdminApi {
@@ -131,6 +153,12 @@ export function httpAdminApi(token: string): AdminApi {
     note: (id, text) => post(`/withdrawals/${id}/note`, { text }),
     adjustBalance: (userId, amountUsdt, comment) => post(`/users/${userId}/adjust`, { amountUsdt, comment }),
     setBlocked: (userId, blocked) => post(`/users/${userId}/block`, { blocked }),
+    orders: (status) => request('GET', `/api/admin/orders?status=${status}`, auth),
+    orderGet: (id) => request('GET', `/api/admin/orders/${id}`, auth),
+    orderPaid: (id) => post(`/orders/${id}/paid`),
+    orderClarify: (id, message) => post(`/orders/${id}/clarify`, { message }),
+    orderReject: (id, reason) => post(`/orders/${id}/reject`, { reason }),
+    orderNote: (id, text) => post(`/orders/${id}/note`, { text }),
   };
 }
 

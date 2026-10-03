@@ -32,6 +32,8 @@ export const config = {
   chainalysisSanctionsApiKey: process.env.CHAINALYSIS_SANCTIONS_API_KEY ?? '',
   /** Deposits below this are not credited (dust and spam transfers). */
   depositMinUsdt: num('DEPOSIT_MIN_USDT', 1),
+  /** Fines, parking, Steam: the user pays this much less USDT than at the Rapira price. */
+  servicesDiscountPercent: num('SERVICES_DISCOUNT_PERCENT', 10),
   databasePath: process.env.DATABASE_PATH || 'data/wallet.db',
   /** Support account users are sent to, without "@". */
   supportUsername: (process.env.SUPPORT_USERNAME ?? '').replace(/^@/, ''),

@@ -1,6 +1,8 @@
 import { useState, type ReactNode } from 'react';
 import gibddLogo from '../assets/services/gibdd.png';
 import steamLogo from '../assets/services/steam.png';
+import parkingLogo from '../assets/services/parking.png';
+import type { ServiceKind } from '../../../shared/services';
 import { haptic } from '../lib/telegram';
 import { IconArrowUpRight, IconChevronRight, IconPlus } from './icons';
 import { Sheet } from './Sheet';
@@ -8,10 +10,13 @@ import { Sheet } from './Sheet';
 interface Props {
   onDeposit: () => void;
   onWithdraw: () => void;
+  onService: (kind: ServiceKind) => void;
 }
 
 interface Service {
   id: string;
+  /** Opens the working flow; services without it show a "coming soon" sheet. */
+  kind?: ServiceKind;
   title: string;
   subtitle: string;
   logo: ReactNode;
@@ -22,14 +27,25 @@ interface Service {
 const SERVICES: Service[] = [
   {
     id: 'fines',
+    kind: 'fine',
     title: 'Оплата штрафов ГИБДД',
-    subtitle: 'Найдём штрафы по номеру авто или водительскому',
+    subtitle: 'Найдём штраф по УИН и оплатим за вас',
     logo: <img src={gibddLogo} alt="" />,
     discount: 10,
     about: 'Проверка и оплата штрафов Госавтоинспекции с баланса USDT на 10% дешевле суммы штрафа.',
   },
   {
+    id: 'parking',
+    kind: 'parking',
+    title: 'Парковки России',
+    subtitle: 'Пополнение парковочного счёта',
+    logo: <img src={parkingLogo} alt="" />,
+    discount: 10,
+    about: '',
+  },
+  {
     id: 'steam',
+    kind: 'steam',
     title: 'Пополнение Steam',
     subtitle: 'Деньги на аккаунт за пару минут',
     logo: <img src={steamLogo} alt="" />,
@@ -45,7 +61,7 @@ const SERVICES: Service[] = [
   },
 ];
 
-export function ServicesScreen({ onDeposit, onWithdraw }: Props) {
+export function ServicesScreen({ onDeposit, onWithdraw, onService }: Props) {
   const [open, setOpen] = useState<Service | null>(null);
   return (
     <section className="services">
@@ -65,7 +81,7 @@ export function ServicesScreen({ onDeposit, onWithdraw }: Props) {
       </div>
 
       {SERVICES.map((s) => (
-        <button key={s.id} className="card svc-card" onClick={() => { haptic(); setOpen(s); }}>
+        <button key={s.id} className="card svc-card" onClick={() => { haptic(); if (s.kind) onService(s.kind); else setOpen(s); }}>
           <ServiceLogo id={s.id} logo={s.logo} discount={s.discount} />
           <span className="svc-text">
             <b>{s.title}</b>

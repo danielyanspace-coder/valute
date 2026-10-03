@@ -13,6 +13,8 @@ import { UserRepo } from './users/userRepo.js';
 import { WithdrawalService } from './withdrawals/withdrawalService.js';
 import { TransferService } from './transfers/transferService.js';
 import { TelegramApi, WalletBot } from './bot/bot.js';
+import { NoFineLookup } from './orders/fineLookup.js';
+import { OrderService } from './orders/orderService.js';
 
 const AUTO_CONFIRM_TICK_MS = 15_000;
 
@@ -36,6 +38,9 @@ const withdrawals = new WithdrawalService(db, users, ledger, notifications);
 let bot: WalletBot | null = null;
 const botUsername = () => bot?.username || config.botUsername;
 const transfers = new TransferService(db, users, ledger, notifications, withdrawals, botUsername);
+// Plug a fines data provider (ШтрафовНет, shtraf.biz...) here once there is a contract.
+const fineLookup = new NoFineLookup();
+const orders = new OrderService(db, users, ledger, notifications, withdrawals, fineLookup, config.servicesDiscountPercent);
 
 const app = buildApp({
   rates,
@@ -45,6 +50,9 @@ const app = buildApp({
   withdrawals,
   notifications,
   transfers,
+  orders,
+  fineLookup,
+  servicesDiscountPercent: config.servicesDiscountPercent,
   botUsername,
   adminToken: config.adminToken,
   telegramBotToken: config.telegramBotToken,

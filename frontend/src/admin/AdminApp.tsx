@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import type { AdminCounts, AdminWithdrawalDto, AdminWithdrawalListItem, WithdrawalEventDto } from '../../../shared/api';
+import type { AdminCounts, AdminUserDto, AdminWithdrawalDto, AdminWithdrawalListItem, WithdrawalEventDto } from '../../../shared/api';
+import { OrdersPanel } from './OrdersPanel';
 import { STATUS_LABEL, formatCard, formatRuPhone, isFinal, type WithdrawalStatus } from '../../../shared/payout';
 import { LogoX } from '../components/icons';
 import { MirMark, SbpMark } from '../components/brandMarks';
@@ -51,7 +52,25 @@ const writeToken = (t: string) => {
 export function AdminApp() {
   const [token, setToken] = useState(() => (IS_DEMO ? 'demo' : readToken()));
   if (!token) return <Login onLogin={(t) => { writeToken(t); setToken(t); }} />;
-  return <Panel api={adminApi(token)} onLogout={IS_DEMO ? undefined : () => { writeToken(''); setToken(''); }} />;
+  return <Sections api={adminApi(token)} onLogout={IS_DEMO ? undefined : () => { writeToken(''); setToken(''); }} />;
+}
+
+type Section = 'withdrawals' | 'orders';
+
+/** Two queues: ruble withdrawals and "МК" (fines, parking, Steam). */
+function Sections({ api, onLogout }: { api: AdminApi; onLogout?: () => void }) {
+  const [section, setSection] = useState<Section>('withdrawals');
+  const top = (
+    <header className="adm-top">
+      <div className="adm-brand"><LogoX size={22} /> Crypto IX</div>
+      <nav className="adm-sections">
+        <button className={section === 'withdrawals' ? 'active' : ''} onClick={() => setSection('withdrawals')}>Выводы</button>
+        <button className={section === 'orders' ? 'active' : ''} onClick={() => setSection('orders')}>МК</button>
+      </nav>
+      {onLogout ? <button className="adm-link" onClick={onLogout}>Выйти</button> : <span />}
+    </header>
+  );
+  return section === 'withdrawals' ? <Panel api={api} top={top} /> : <OrdersPanel api={api} top={top} />;
 }
 
 function Login({ onLogin }: { onLogin: (token: string) => void }) {
@@ -86,7 +105,7 @@ function Login({ onLogin }: { onLogin: (token: string) => void }) {
   );
 }
 
-function Panel({ api, onLogout }: { api: AdminApi; onLogout?: () => void }) {
+function Panel({ api, top }: { api: AdminApi; top: ReactNode }) {
   const [filter, setFilter] = useState<Filter>('pending');
   const [items, setItems] = useState<AdminWithdrawalListItem[]>([]);
   const [counts, setCounts] = useState<AdminCounts | null>(null);
@@ -109,10 +128,7 @@ function Panel({ api, onLogout }: { api: AdminApi; onLogout?: () => void }) {
 
   return (
     <div className="adm">
-      <header className="adm-top">
-        <div className="adm-brand"><LogoX size={22} /> Crypto IX · Выводы</div>
-        {onLogout && <button className="adm-link" onClick={onLogout}>Выйти</button>}
-      </header>
+      {top}
       <nav className="adm-tabs">
         {TABS.map((t) => {
           const n = t.id === 'all' || !counts ? null : counts[t.id];
@@ -257,8 +273,14 @@ function Detail({ api, id, onBack, onChanged }: { api: AdminApi; id: number; onB
         </div>
       )}
 
+      {isFinal(d.status) && (
+        <div className="adm-actions">
+          <ContactClient user={u} />
+        </div>
+      )}
       {!isFinal(d.status) && (
         <div className="adm-actions">
+          <ContactClient user={u} />
           {(d.status === 'pending' || d.status === 'disputed') && (
             <TwoStep
               label={d.status === 'disputed' ? 'Платёж отправлен повторно' : 'Платёж отправлен'}
@@ -317,27 +339,7 @@ function Detail({ api, id, onBack, onChanged }: { api: AdminApi; id: number; onB
           <Row k="Сумма к отправке" v={fmtRub0(d.amountRub)} copy={String(d.amountRub)} big />
         </Card>
 
-        <Card title="Пользователь">
-          <Row k="Имя" v={[u.firstName, u.lastName].filter(Boolean).join(' ')} />
-          <Row
-            k="Username"
-            v={u.username ? `@${u.username}` : 'Скрыт'}
-            href={u.username ? `https://t.me/${u.username}` : undefined}
-            tone={u.username ? undefined : 'warn'}
-          />
-          <Row k="Telegram ID" v={String(u.telegramId)} copy={String(u.telegramId)} />
-          <Row k="ID в системе" v={String(u.id)} />
-          <Row k="Язык" v={u.languageCode ?? 'Не указан'} />
-          <Row k="Регистрация" v={`${fmtDateTime(u.createdAt)} (${fmtAgo(u.createdAt)})`} />
-          <Row k="Последний вход" v={fmtAgo(u.lastSeenAt)} />
-          <Row
-            k="Пропуски подтверждений"
-            v={String(u.missedConfirmations)}
-            tone={u.missedConfirmations >= 2 ? 'danger' : u.missedConfirmations === 1 ? 'warn' : undefined}
-          />
-          <Row k="Статус" v={u.blocked ? 'Заблокирован' : 'Активен'} tone={u.blocked ? 'danger' : 'ok'} />
-          <BlockToggle api={api} userId={u.id} blocked={u.blocked} onDone={load} />
-        </Card>
+        <UserCard u={u} api={api} onDone={load} />
 
         <Card title="Баланс">
           <Row k="Доступно сейчас" v={fmtMicroExact(u.availableMicro)} big />
@@ -406,7 +408,7 @@ function Detail({ api, id, onBack, onChanged }: { api: AdminApi; id: number; onB
   );
 }
 
-const ACTOR = { user: 'Пользователь', admin: 'Админ', system: 'Система' } as const;
+export const ACTOR = { user: 'Пользователь', admin: 'Админ', system: 'Система' } as const;
 
 function eventText(e: WithdrawalEventDto): string {
   const x = (e.data ?? {}) as Record<string, unknown>;
@@ -434,7 +436,7 @@ function StatusChip({ status }: { status: WithdrawalStatus }) {
   return <span className={`adm-chip s-${status}`}>{STATUS_LABEL[status]}</span>;
 }
 
-function Card({ title, children }: { title: string; children: ReactNode }) {
+export function Card({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="adm-card">
       <div className="adm-card-title">{title}</div>
@@ -443,7 +445,7 @@ function Card({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Row(props: { k: string; v: string; sub?: string; icon?: ReactNode; copy?: string; href?: string; big?: boolean; mono?: boolean; small?: boolean; tone?: 'ok' | 'warn' | 'danger' }) {
+export function Row(props: { k: string; v: string; sub?: string; icon?: ReactNode; copy?: string; href?: string; big?: boolean; mono?: boolean; small?: boolean; tone?: 'ok' | 'warn' | 'danger' }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -472,7 +474,7 @@ function Row(props: { k: string; v: string; sub?: string; icon?: ReactNode; copy
   );
 }
 
-function TwoStep(props: { label: string; confirm: string; tone: 'primary' | 'success'; busy: boolean; onConfirm: () => Promise<boolean> }) {
+export function TwoStep(props: { label: string; confirm: string; tone: 'primary' | 'success'; busy: boolean; onConfirm: () => Promise<boolean> }) {
   const [asking, setAsking] = useState(false);
   if (!asking) {
     return <button className={`adm-btn ${props.tone}`} disabled={props.busy} onClick={() => setAsking(true)}>{props.label}</button>;
@@ -486,7 +488,7 @@ function TwoStep(props: { label: string; confirm: string; tone: 'primary' | 'suc
   );
 }
 
-function BlockToggle({ api, userId, blocked, onDone }: { api: AdminApi; userId: number; blocked: boolean; onDone: () => void }) {
+export function BlockToggle({ api, userId, blocked, onDone }: { api: AdminApi; userId: number; blocked: boolean; onDone: () => void }) {
   const [asking, setAsking] = useState(false);
   if (!asking) {
     return (
@@ -504,7 +506,7 @@ function BlockToggle({ api, userId, blocked, onDone }: { api: AdminApi; userId: 
   );
 }
 
-function Adjust({ api, userId, onDone }: { api: AdminApi; userId: number; onDone: () => void }) {
+export function Adjust({ api, userId, onDone }: { api: AdminApi; userId: number; onDone: () => void }) {
   const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState('');
   const [comment, setComment] = useState('');
@@ -546,5 +548,47 @@ function PayoutLogo({ method, bankId, destination, size }: { method: 'sbp' | 'ca
     <span className="adm-logo-tile" style={{ width: size, height: size }}>
       {destination.startsWith('МИР') ? <MirMark width={size * 0.82} /> : <span className="adm-card-brand">{destination.split(' ')[0]}</span>}
     </span>
+  );
+}
+
+export function UserCard({ u, api, onDone }: { u: AdminUserDto; api: AdminApi; onDone: () => void }) {
+  return (
+    <Card title="Пользователь">
+      <Row k="Имя" v={[u.firstName, u.lastName].filter(Boolean).join(' ')} />
+      <Row
+        k="Username"
+        v={u.username ? `@${u.username}` : 'Скрыт'}
+        href={u.username ? `https://t.me/${u.username}` : undefined}
+        tone={u.username ? undefined : 'warn'}
+      />
+      <Row k="Telegram ID" v={String(u.telegramId)} copy={String(u.telegramId)} />
+      <Row k="ID в системе" v={String(u.id)} />
+      <Row k="Язык" v={u.languageCode ?? 'Не указан'} />
+      <Row k="Регистрация" v={`${fmtDateTime(u.createdAt)} (${fmtAgo(u.createdAt)})`} />
+      <Row k="Последний вход" v={fmtAgo(u.lastSeenAt)} />
+      <Row
+        k="Пропуски подтверждений"
+        v={String(u.missedConfirmations)}
+        tone={u.missedConfirmations >= 2 ? 'danger' : u.missedConfirmations === 1 ? 'warn' : undefined}
+      />
+      <Row k="Статус" v={u.blocked ? 'Заблокирован' : 'Активен'} tone={u.blocked ? 'danger' : 'ok'} />
+      <BlockToggle api={api} userId={u.id} blocked={u.blocked} onDone={onDone} />
+    </Card>
+  );
+}
+
+/** Opens the client's Telegram chat: by username, or by numeric id when the username is hidden. */
+export function ContactClient({ user }: { user: { username: string | null; telegramId: number } }) {
+  const href = user.username ? `https://t.me/${user.username}` : `tg://user?id=${user.telegramId}`;
+  return (
+    <a
+      className="adm-btn contact"
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title={user.username ? `@${user.username}` : 'Username скрыт: откроется профиль по ID, если Telegram его покажет'}
+    >
+      Связаться с клиентом{user.username ? '' : ' (по ID)'}
+    </a>
   );
 }

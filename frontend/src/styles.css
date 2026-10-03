@@ -779,8 +779,8 @@ button.card:active { transform: scale(0.98); border-color: var(--border-strong);
   background: linear-gradient(160deg, #f5f7fb, #dfe5ee); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
 }
 .svc-logo-inner img { width: 80%; height: 80%; object-fit: contain; }
-.svc-logo-steam .svc-logo-inner { background: linear-gradient(160deg, #1b2838, #2a475e); }
-.svc-logo-steam .svc-logo-inner img { width: 70%; height: 70%; }
+.svc-logo-steam .svc-logo-inner, .svc-bg-steam { background: linear-gradient(160deg, #1b2838, #2a475e); }
+.svc-logo-steam .svc-logo-inner img, .svc-bg-steam img { width: 70%; height: 70%; }
 .svc-logo-tours .svc-logo-inner svg { display: block; }
 /* Price-sticker style discount: tilted, with a white ring so it reads on any logo. */
 .svc-discount {
@@ -797,3 +797,55 @@ button.card:active { transform: scale(0.98); border-color: var(--border-strong);
 .svc-detail > b { font-size: 18px; margin-top: 6px; }
 .svc-detail p { margin: 0; font-size: 13.5px; line-height: 1.5; max-width: 32ch; }
 .svc-detail .btn { margin-top: 8px; }
+.svc-logo-parking .svc-logo-inner img, .svc-bg-parking img { width: 100%; height: 100%; object-fit: cover; }
+
+/* ---------- Service flows ---------- */
+.svc-intro { display: flex; align-items: center; gap: 16px; padding: 4px 4px 2px; }
+.svc-intro p { margin: 0; font-size: 13px; line-height: 1.5; color: #c9cfdb; }
+.svc-intro .svc-logo { width: 56px; height: 56px; }
+.svc-head { display: flex; align-items: center; gap: 10px; }
+.svc-head.center { justify-content: center; }
+.svc-head img { width: 30px; height: 30px; border-radius: 9px; object-fit: contain; background: #fff; }
+.svc-head b { font-size: 15px; }
+.uin-row { display: flex; gap: 8px; }
+.uin-row .input { flex: 1; min-width: 0; }
+.uin-btn { flex: none; width: 92px; height: 48px; }
+.mono-input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.5px; font-size: 15px; }
+.help { border-radius: 14px; background: rgba(255, 255, 255, 0.035); border: 1px solid var(--border); }
+.help-q { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 12px 14px; font-size: 13.5px; font-weight: 600; text-align: left; }
+.help.open .faq-chevron { transform: rotate(90deg); }
+.help-a { padding: 0 14px 12px; font-size: 12.5px; line-height: 1.55; color: #c2c9d6; }
+.help-a p { margin: 0; }
+.help-a ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; }
+.fine-card { display: flex; flex-direction: column; gap: 6px; padding: 14px; border-radius: 16px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); }
+.fine-top { display: flex; gap: 12px; align-items: center; }
+.fine-top img { width: 40px; height: 40px; object-fit: contain; border-radius: 10px; background: #fff; padding: 3px; flex-shrink: 0; }
+.fine-top div { display: flex; flex-direction: column; gap: 2px; }
+.fine-top b { font-size: 13.5px; line-height: 1.35; }
+.fine-top .muted { font-size: 12px; }
+.fine-card .kv { font-size: 13px; padding: 8px 0; }
+.strike { text-decoration: line-through; color: var(--muted); }
+.price-block {
+  display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 16px;
+  background: linear-gradient(160deg, rgba(47, 209, 139, 0.1), rgba(47, 209, 139, 0.03)); border: 1px solid rgba(47, 209, 139, 0.25);
+}
+.price-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; font-variant-numeric: tabular-nums; }
+.price-row.main b { font-size: 20px; }
+.price-row.main span { font-size: 14px; font-weight: 600; }
+.price-benefit {
+  display: flex; justify-content: space-between; align-items: center; padding: 8px 10px; border-radius: 10px;
+  background: rgba(47, 209, 139, 0.14); color: var(--green); font-size: 13px; font-weight: 600;
+}
+.steam-warning {
+  display: flex; gap: 10px; padding: 12px 13px; border-radius: 14px;
+  background: rgba(255, 93, 108, 0.08); border: 1px solid rgba(255, 93, 108, 0.3); color: #ff8d98;
+}
+.steam-warning svg { flex-shrink: 0; margin-top: 1px; }
+.steam-warning p { margin: 0; font-size: 12.5px; line-height: 1.5; color: #f3c5ca; }
+.o-pending { background: rgba(127, 140, 255, 0.13); color: #b8c0ff; }
+.o-clarify { background: rgba(255, 190, 80, 0.13); color: #ffc768; }
+.o-paid { background: rgba(47, 209, 139, 0.13); color: var(--green); }
+.o-rejected { background: rgba(139, 147, 163, 0.15); color: #b3bac7; }
+.wd-status.o-pending .wd-status-icon, .wd-status.o-clarify .wd-status-icon, .wd-status.o-paid .wd-status-icon, .wd-status.o-rejected .wd-status-icon { background: rgba(255, 255, 255, 0.08); }
+.history-icon.svc { background: #fff; overflow: hidden; padding: 0; }
+.history-icon.svc img { width: 100%; height: 100%; object-fit: contain; }

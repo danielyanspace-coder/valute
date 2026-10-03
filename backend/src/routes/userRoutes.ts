@@ -1,5 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import type { CreateCheckRequest, CreateWithdrawalRequest, DepositInfoDto, MeDto, NotificationDto, SendTransferRequest } from '../../../shared/api.js';
+import type { CreateCheckRequest, CreateOrderRequest, CreateWithdrawalRequest, DepositInfoDto, FineLookupDto, HistoryItem, MeDto, NotificationDto, SendTransferRequest, ServicesConfigDto } from '../../../shared/api.js';
+import { STEAM_MAX_RUB, STEAM_MIN_RUB, MAX_PARKING_RUB, MIN_PARKING_RUB } from '../../../shared/services.js';
+import type { FineLookup } from '../orders/fineLookup.js';
+import type { OrderService } from '../orders/orderService.js';
 import type { UserRepo } from '../users/userRepo.js';
 import type { TransferService } from '../transfers/transferService.js';
 import type { Ledger } from '../ledger/ledger.js';
@@ -17,6 +20,9 @@ export interface UserRouteDeps {
   botUsername: () => string;
   users: UserRepo;
   depositMinUsdt: number;
+  orders: OrderService;
+  fineLookup: FineLookup;
+  servicesDiscountPercent: number;
 }
 
 /** Routes for the Mini App. Registered inside a scope that already runs Telegram auth. */
@@ -73,12 +79,14 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     const items = deps.notifications.unseen(uid).map((n): NotificationDto => {
       const t = n.transferId ? deps.transfers.transfer(n.transferId) : undefined;
       const c = n.checkId ? deps.transfers.check(n.checkId) : undefined;
+      const o = n.orderId ? deps.orders.row(n.orderId) : undefined;
       return {
         id: n.id,
         type: n.type,
         withdrawalId: n.withdrawalId,
         transfer: t ? deps.transfers.transferDto(t, uid) : null,
         check: c ? deps.transfers.checkDto(c) : null,
+        order: o ? deps.orders.toUserDto(o) : null,
         createdAt: n.createdAt,
       };
     });
@@ -99,7 +107,46 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     };
   });
 
-  app.get('/api/history', async (req) => ({ items: deps.transfers.history(req.user!.id) }));
+  app.get('/api/history', async (req) => {
+    const uid = req.user!.id;
+    const orders = deps.orders.listForUser(uid).map((o): HistoryItem => ({ type: 'order', at: o.created_at, order: deps.orders.toUserDto(o) }));
+    return { items: [...deps.transfers.history(uid), ...orders].sort((a, b) => b.at - a.at).slice(0, 100) };
+  });
+
+  // ---------- Services: fines, parking, Steam ----------
+
+  app.get('/api/services/config', async (_req, reply): Promise<ServicesConfigDto | void> => {
+    const rate = deps.rates.getWalletRate();
+    if (!rate) return reply.code(503).send({ error: 'rate_unavailable', message: 'Курс временно недоступен' });
+    return {
+      discountPercent: deps.servicesDiscountPercent,
+      serviceRate: deps.orders.rateFor(rate.exchangeAsk),
+      fineLookupAvailable: deps.fineLookup.available,
+      steam: { minRub: STEAM_MIN_RUB, maxRub: STEAM_MAX_RUB },
+      parking: { minRub: MIN_PARKING_RUB, maxRub: MAX_PARKING_RUB },
+    };
+  });
+
+  app.get<{ Querystring: { uin?: string } }>('/api/fines/lookup', async (req): Promise<FineLookupDto> => {
+    if (!deps.fineLookup.available) {
+      return { found: false, manual: true, message: 'Введите сумму из постановления, мы проверим штраф перед оплатой' };
+    }
+    const fine = await deps.orders.lookupFine(req.query.uin ?? '');
+    return fine ? { found: true, fine } : { found: false, manual: false, message: 'Штраф с таким УИН не найден или уже оплачен' };
+  });
+
+  app.post<{ Body: CreateOrderRequest & { platform?: string } }>('/api/orders', async (req) => {
+    const rate = deps.rates.getWalletRate();
+    const o = await deps.orders.create(req.user!, req.body ?? ({} as CreateOrderRequest), rate?.exchangeAsk ?? null, {
+      ip: req.ip,
+      platform: req.body?.platform,
+    });
+    return deps.orders.toUserDto(o);
+  });
+
+  app.get<{ Params: { id: string } }>('/api/orders/:id', async (req) =>
+    deps.orders.toUserDto(deps.orders.getForUser(req.user!.id, Number(req.params.id))),
+  );
 
   app.get<{ Querystring: { username?: string } }>('/api/users/lookup', async (req) => {
     const u = deps.transfers.findRecipient(req.user!, req.query.username ?? '');
