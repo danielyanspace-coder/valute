@@ -10,7 +10,20 @@ function initials(name: string): string {
   return (words.length > 1 ? words[0][0] + words[1][0] : clean.slice(0, 2)).toUpperCase();
 }
 
+// Official logos from the NSPK participants list (scripts/fetch-bank-logos.mjs). The browser loads
+// only the ones on screen; banks without a logo fall back to colored initials.
+const LOGOS: Record<string, string> = Object.fromEntries(
+  Object.entries(import.meta.glob<string>('../../assets/banks/*.png', { eager: true, import: 'default' })).map(([path, url]) => [
+    path.slice(path.lastIndexOf('/') + 1, -4),
+    url,
+  ]),
+);
+
 export function BankAvatar({ bank, size = 36 }: { bank: SbpBank; size?: number }) {
+  const logo = LOGOS[bank.id];
+  if (logo) {
+    return <img className="bank-avatar logo" src={logo} alt="" width={size} height={size} loading="lazy" decoding="async" />;
+  }
   const color = bank.color ?? PALETTE[Number(bank.id.slice(-3)) % PALETTE.length];
   const light = /^#(f|e|d)/i.test(color); // yellow brands (Т-Банк, Райффайзен) need dark text
   return (
