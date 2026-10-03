@@ -37,6 +37,7 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
       supportUsername: deps.supportUsername,
       contactLock: deps.withdrawals.contactLock(u.id),
       botUsername: deps.botUsername(),
+      stats: { ...deps.withdrawals.exchangeStats(u.id), memberSince: u.created_at },
     };
   });
 

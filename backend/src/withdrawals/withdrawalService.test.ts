@@ -154,3 +154,13 @@ describe('contact lock', () => {
     expect(() => svc.requestContact(w.id)).toThrow(/завершена/);
   });
 });
+
+describe('exchange stats', () => {
+  it('counts only completed withdrawals', () => {
+    const a = svc.create(user, sbp(), QUOTE);
+    svc.create(user, sbp({ amountRub: 500 }), QUOTE);
+    svc.markSent(a.id);
+    svc.confirmByUser(user.id, a.id);
+    expect(svc.exchangeStats(user.id)).toEqual({ exchanges: 1, exchangedRub: 8200 });
+  });
+});

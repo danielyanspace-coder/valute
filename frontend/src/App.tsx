@@ -9,6 +9,8 @@ import { ContactLock } from './components/ContactLock';
 import { CryptoList } from './components/CryptoList';
 import { Header } from './components/Header';
 import { HistoryScreen } from './components/HistoryScreen';
+import { ProfileScreen } from './components/ProfileScreen';
+import { ServicesScreen } from './components/ServicesScreen';
 import { NotificationHost } from './components/NotificationHost';
 import { Promo } from './components/Promo';
 import { QrResultSheet } from './components/QrResultSheet';
@@ -113,8 +115,8 @@ export function App() {
           user={headerUser}
           supportUnread={0}
           onSupport={() => (support ? openTelegramChat(support) : setSoon('Поддержка'))}
-          onHelp={() => setSoon('Помощь')}
-          onProfile={() => setSoon('Профиль')}
+          onHelp={() => { setTab('profile'); window.scrollTo(0, 0); }}
+          onProfile={() => setTab('profile')}
         />
 
         {tab === 'home' && (
@@ -140,6 +142,10 @@ export function App() {
           </>
         )}
 
+        {tab === 'services' && <ServicesScreen onDeposit={() => setDepositOpen(true)} onWithdraw={() => setWithdrawOpen(true)} />}
+
+        {tab === 'profile' && <ProfileScreen me={me} onUnavailableSupport={() => setSoon('Поддержка')} />}
+
         {tab === 'history' && (
           <HistoryScreen items={history} loading={historyLoading} onOpenWithdrawal={setOpenWithdrawal} onOpenChecks={() => setTransferOpen(true)} />
         )}
@@ -150,8 +156,8 @@ export function App() {
         onScan={startScan}
         onTab={(t) => {
           haptic();
-          if (t === 'home' || t === 'history') return setTab(t);
-          setSoon({ services: 'Сервисы', profile: 'Профиль' }[t]);
+          setTab(t);
+          window.scrollTo(0, 0);
         }}
       />
 

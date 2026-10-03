@@ -23,6 +23,8 @@ export interface MeDto {
   contactLock: { withdrawalId: number; amountRub: number } | null;
   /** Bot username without "@", for check links and the "@bot 10" hint. */
   botUsername: string;
+  /** Profile numbers. An exchange is a completed USDT → RUB withdrawal. */
+  stats: { exchanges: number; exchangedRub: number; memberSince: number };
 }
 
 /** Deposits: USDT on TRON (TRC-20) only. */

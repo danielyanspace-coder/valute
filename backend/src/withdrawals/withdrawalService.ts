@@ -168,6 +168,14 @@ export class WithdrawalService {
     return row ? { withdrawalId: row.id, amountRub: row.amount_rub } : null;
   }
 
+  /** Completed USDT → RUB withdrawals, shown in the profile as "exchanges". */
+  exchangeStats(userId: number): { exchanges: number; exchangedRub: number } {
+    const r = this.db
+      .prepare(`SELECT COUNT(*) AS n, COALESCE(SUM(amount_rub), 0) AS rub FROM withdrawals WHERE user_id = ? AND status = 'completed'`)
+      .get(userId) as { n: number; rub: number };
+    return { exchanges: r.n, exchangedRub: r.rub };
+  }
+
   assertNotLocked(userId: number): void {
     if (this.contactLock(userId)) {
       throw new AppError(423, 'locked', 'Кошелёк временно недоступен. Свяжитесь с поддержкой, чтобы завершить заявку');

@@ -293,6 +293,11 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
         availableMicro: me.availableMicro, frozenMicro: me.frozenMicro, blocked: me.blocked, supportUsername: 'cryptoix_support',
         contactLock: contactLock(me.id),
         botUsername: BOT,
+        stats: {
+          exchanges: withdrawals.filter((w) => w.userId === me.id && w.status === 'completed').length,
+          exchangedRub: withdrawals.filter((w) => w.userId === me.id && w.status === 'completed').reduce((a, w) => a + w.amountRub, 0),
+          memberSince: me.createdAt,
+        },
       }),
     withdrawals: () => delay({ items: withdrawals.filter((w) => w.userId === me.id).reverse().map(userDto) }),
     withdrawal: (id) => {
