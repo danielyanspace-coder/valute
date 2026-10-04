@@ -39,7 +39,7 @@ export function DepositSheet({ open, onClose }: { open: boolean; onClose: () => 
     else void copy();
   };
 
-  const min = info ? shortUsdt(info.minDepositMicro) : '1';
+  const min = info ? shortUsdt(info.minDepositMicro) : '10';
 
   return (
     <Sheet open={open} onClose={onClose} title="Пополнить">

@@ -447,7 +447,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
         networkName: 'TRON (TRC-20)',
         // Deliberately invalid (contains 0 and O, which TRON addresses never have): no wallet will accept it.
         address: 'T0DEM0ADDRESS0NOT0REAL0O0000000000',
-        minDepositMicro: USDT_MICRO,
+        minDepositMicro: 10 * USDT_MICRO,
         confirmations: 20,
         demo: true,
       }),
