@@ -5,6 +5,9 @@ import { SERVICE_LOGO } from './services/ServiceFlows';
 import { shortUsdt } from '../../../shared/transfers';
 import { fmtDateTime, fmtRub0 } from '../lib/format';
 import { IconArrowUpRight, IconCard, IconHistory, IconPlus } from './icons';
+import { CoinIcon } from './CoinIcon';
+import { DEPOSIT_STATUS_LABEL } from './deposit/DepositDetailSheet';
+import type { DepositDto } from '../../../shared/api';
 
 const who = (p: { username: string | null; firstName: string }) => (p.username ? `@${p.username}` : p.firstName);
 const CHECK_STATUS = { active: 'Активен', claimed: 'Активирован', cancelled: 'Отменён' } as const;
@@ -15,9 +18,10 @@ interface Props {
   onOpenWithdrawal: (id: number) => void;
   onOpenChecks: () => void;
   onOpenOrder: (id: number) => void;
+  onOpenDeposit: (d: DepositDto) => void;
 }
 
-export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks, onOpenOrder }: Props) {
+export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks, onOpenOrder, onOpenDeposit }: Props) {
   return (
     <section className="history">
       <h2 className="screen-title">История</h2>
@@ -56,6 +60,15 @@ export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks, 
                 <Row key={`o${o.id}`} icon={<img src={SERVICE_LOGO[o.kind]} alt="" />} iconClass="svc" title={SERVICE_TITLE[o.kind]}
                   sub={o.target} amount={`−${shortUsdt(o.amountMicro)} USDT`} chip={ORDER_STATUS_LABEL[o.status]} chipClass={`o-${o.status}`}
                   at={o.createdAt} onClick={() => onOpenOrder(o.id)} />
+              );
+            }
+            if (h.type === 'deposit') {
+              const d = h.deposit;
+              return (
+                <Row key={`d${d.id}`} icon={<CoinIcon symbol="USDT" size={36} />} iconClass="dep" title="Пополнение"
+                  sub="USDT · TRON (TRC-20)" amount={`+${shortUsdt(d.amountMicro)} USDT`} amountClass={d.status === 'credited' ? 'up' : ''}
+                  chip={d.status === 'credited' ? undefined : DEPOSIT_STATUS_LABEL[d.status]} chipClass={`dep-${d.status}`}
+                  at={d.createdAt} onClick={() => onOpenDeposit(d)} />
               );
             }
             const c = h.check;

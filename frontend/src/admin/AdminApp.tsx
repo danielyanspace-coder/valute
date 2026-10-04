@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import type { AdminCounts, AdminUserDto, AdminWithdrawalDto, AdminWithdrawalListItem, WithdrawalEventDto } from '../../../shared/api';
 import { OrdersPanel } from './OrdersPanel';
+import { DepositsPanel } from './DepositsPanel';
 import { STATUS_LABEL, formatCard, formatRuPhone, isFinal, type WithdrawalStatus } from '../../../shared/payout';
 import { LogoX } from '../components/icons';
 import { MirMark, SbpMark } from '../components/brandMarks';
@@ -55,9 +56,9 @@ export function AdminApp() {
   return <Sections api={adminApi(token)} onLogout={IS_DEMO ? undefined : () => { writeToken(''); setToken(''); }} />;
 }
 
-type Section = 'withdrawals' | 'orders';
+type Section = 'withdrawals' | 'orders' | 'deposits';
 
-/** Two queues: ruble withdrawals and "МК" (fines, parking, Steam). */
+/** Queues: ruble withdrawals, "МК" (fines, parking, Steam) and incoming deposits. */
 function Sections({ api, onLogout }: { api: AdminApi; onLogout?: () => void }) {
   const [section, setSection] = useState<Section>('withdrawals');
   const top = (
@@ -66,10 +67,12 @@ function Sections({ api, onLogout }: { api: AdminApi; onLogout?: () => void }) {
       <nav className="adm-sections">
         <button className={section === 'withdrawals' ? 'active' : ''} onClick={() => setSection('withdrawals')}>Выводы</button>
         <button className={section === 'orders' ? 'active' : ''} onClick={() => setSection('orders')}>МК</button>
+        <button className={section === 'deposits' ? 'active' : ''} onClick={() => setSection('deposits')}>Пополнения</button>
       </nav>
       {onLogout ? <button className="adm-link" onClick={onLogout}>Выйти</button> : <span />}
     </header>
   );
+  if (section === 'deposits') return <DepositsPanel api={api} top={top} />;
   return section === 'withdrawals' ? <Panel api={api} top={top} /> : <OrdersPanel api={api} top={top} />;
 }
 

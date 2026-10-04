@@ -50,3 +50,15 @@ export class TronXpub {
     return tronAddressFromPublicKey(this.external.deriveChild(index).publicKey!);
   }
 }
+
+/** T... → 41-prefixed hex, as TRON nodes return addresses in raw responses. */
+export function tronAddressToHex(address: string): string {
+  return Buffer.from(base58check.decode(address)).toString('hex');
+}
+
+/** 41-prefixed (or bare 20-byte) hex → T... */
+export function tronAddressFromHex(hex: string): string {
+  const clean = hex.toLowerCase().replace(/^0x/, '');
+  const body = clean.length === 40 ? `41${clean}` : clean;
+  return base58check.encode(Uint8Array.from(Buffer.from(body, 'hex')));
+}

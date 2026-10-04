@@ -5,6 +5,8 @@ import type { AmlService } from '../aml/amlService.js';
 import type { Chain } from '../aml/types.js';
 import type { UserRepo } from '../users/userRepo.js';
 import type { OrderService } from '../orders/orderService.js';
+import type { DepositService } from '../deposits/depositService.js';
+import { AppError } from '../withdrawals/withdrawalService.js';
 import type { OrderStatus } from '../../../shared/services.js';
 import type { WithdrawalService } from '../withdrawals/withdrawalService.js';
 
@@ -16,6 +18,7 @@ export interface AdminRouteDeps {
   users: UserRepo;
   aml: AmlService;
   orders: OrderService;
+  deposits: DepositService | null;
 }
 
 /** Routes for the admin panel. Registered inside a scope that already checks the admin token. */
@@ -59,6 +62,25 @@ export function adminRoutes(app: FastifyInstance, deps: AdminRouteDeps) {
   orderAction('clarify', (id, b) => deps.orders.clarify(id, String(b.message ?? '')));
   orderAction('reject', (id, b) => deps.orders.reject(id, String(b.reason ?? '')));
   orderAction('note', (id, b) => deps.orders.addNote(id, String(b.text ?? '')));
+
+  // ---------- Deposits (USDT TRC-20) ----------
+
+  const DEPOSIT_STATUSES = ['held', 'below_min', 'pending', 'credited', 'rejected', 'failed', 'all'];
+  const depositsOrFail = () => {
+    if (!deps.deposits) throw new AppError(503, 'deposits_off', 'Пополнения не настроены (нет TRON_XPUB)');
+    return deps.deposits;
+  };
+  app.get<{ Querystring: { status?: string } }>('/api/admin/deposits', async (req) => {
+    if (!deps.deposits) return { items: [], counts: { held: 0, below_min: 0, pending: 0, credited: 0, rejected: 0 }, enabled: false };
+    const s = DEPOSIT_STATUSES.includes(req.query.status ?? '') ? req.query.status! : 'held';
+    return { items: deps.deposits.adminList(s), counts: deps.deposits.adminCounts(), enabled: true };
+  });
+  app.post<{ Params: { id: string }; Body: { note?: string } }>('/api/admin/deposits/:id/credit', async (req) =>
+    depositsOrFail().creditByAdmin(Number(req.params.id), String(req.body?.note ?? '')),
+  );
+  app.post<{ Params: { id: string }; Body: { reason?: string } }>('/api/admin/deposits/:id/reject', async (req) =>
+    depositsOrFail().rejectByAdmin(Number(req.params.id), String(req.body?.reason ?? '')),
+  );
 
   app.get<{ Params: { id: string } }>('/api/admin/users/:id', async (req) => withdrawals.adminUser(Number(req.params.id)));
 

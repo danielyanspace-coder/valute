@@ -81,7 +81,8 @@ export type NotificationType =
   | 'check_claimed'
   | 'order_paid'
   | 'order_rejected'
-  | 'order_clarify';
+  | 'order_clarify'
+  | 'deposit_credited';
 
 export interface NotificationDto {
   id: number;
@@ -93,7 +94,29 @@ export interface NotificationDto {
   check?: CheckDto | null;
   /** order_*: the service order whose status changed. */
   order?: ServiceOrderDto | null;
+  /** deposit_credited: the deposit that just landed on the balance. */
+  deposit?: DepositDto | null;
   createdAt: number;
+}
+
+/**
+ * pending   seen in the chain, waiting for an irreversible (solidified) block
+ * credited  on the balance
+ * below_min smaller than the minimum, not credited (support can credit by hand)
+ * held      AML check flagged the sender or could not run: an operator decides
+ * rejected  operator refused to credit
+ */
+export type DepositStatus = 'pending' | 'credited' | 'below_min' | 'held' | 'rejected';
+
+export interface DepositDto {
+  id: number;
+  status: DepositStatus;
+  amountMicro: number;
+  network: 'TRC20';
+  txId: string;
+  fromAddress: string | null;
+  createdAt: number;
+  creditedAt: number | null;
 }
 
 // ---------- Transfers and checks ----------
@@ -197,7 +220,8 @@ export type HistoryItem =
   | { type: 'withdrawal'; at: number; withdrawal: WithdrawalDto }
   | { type: 'order'; at: number; order: ServiceOrderDto }
   | { type: 'transfer'; at: number; transfer: TransferDto }
-  | { type: 'check'; at: number; check: CheckDto };
+  | { type: 'check'; at: number; check: CheckDto }
+  | { type: 'deposit'; at: number; deposit: DepositDto };
 
 // ---------- Admin ----------
 
@@ -315,6 +339,32 @@ export interface AdminOrderDto extends AdminOrderListItem {
   events: WithdrawalEventDto[];
   userDetails: AdminUserDto;
   serverNow: number;
+}
+
+export interface AdminDepositDto {
+  id: number;
+  status: DepositStatus | 'failed';
+  amountMicro: number;
+  address: string;
+  txId: string;
+  fromAddress: string | null;
+  amlDecision: 'clear' | 'review' | 'reject' | null;
+  amlSignals: { source: string; hit: boolean; error?: string; detail?: string }[];
+  blockNumber: number | null;
+  createdAt: number;
+  confirmedAt: number | null;
+  finishedAt: number | null;
+  creditedBy: 'auto' | 'admin' | null;
+  adminNote: string | null;
+  user: { id: number; username: string | null; firstName: string; telegramId: number };
+}
+
+export interface AdminDepositCounts {
+  held: number;
+  below_min: number;
+  pending: number;
+  credited: number;
+  rejected: number;
 }
 
 export interface AdminOrderCounts {

@@ -18,6 +18,7 @@ import type { TransferService } from './transfers/transferService.js';
 import type { OrderService } from './orders/orderService.js';
 import type { FineLookup } from './orders/fineLookup.js';
 import type { DepositAddressService } from './deposits/depositAddressService.js';
+import type { DepositService } from './deposits/depositService.js';
 
 export interface AppDeps {
   rates: RateService;
@@ -37,6 +38,7 @@ export interface AppDeps {
   supportUsername: string;
   depositMinUsdt: number;
   depositAddresses: DepositAddressService | null;
+  deposits: DepositService | null;
   staticDir?: string;
 }
 

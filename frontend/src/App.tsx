@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import type { HistoryItem, MeDto } from '../../shared/api';
+import type { DepositDto, HistoryItem, MeDto } from '../../shared/api';
 import { USDT_MICRO } from '../../shared/payout';
 import { Actions, type ActionId } from './components/Actions';
 import { BalanceCard } from './components/BalanceCard';
@@ -22,6 +22,7 @@ import { WithdrawalSheet } from './components/withdraw/WithdrawalSheet';
 import { WithdrawFlow } from './components/withdraw/WithdrawFlow';
 import { TransferFlow } from './components/transfer/TransferFlow';
 import { DepositSheet } from './components/deposit/DepositSheet';
+import { DepositDetailSheet } from './components/deposit/DepositDetailSheet';
 import { OrderSheet, ServiceFlow } from './components/services/ServiceFlows';
 import type { ServiceKind } from '../../shared/services';
 import { IS_DEMO, type MarketCoin, type WalletRate } from './lib/api';
@@ -48,6 +49,7 @@ export function App() {
   const [depositOpen, setDepositOpen] = useState(false);
   const [service, setService] = useState<ServiceKind | null>(null);
   const [openOrder, setOpenOrder] = useState<number | null>(null);
+  const [openDeposit, setOpenDeposit] = useState<DepositDto | null>(null);
   const [openWithdrawal, setOpenWithdrawal] = useState<number | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [qrResult, setQrResult] = useState<ParsedQr | null>(null);
@@ -151,7 +153,7 @@ export function App() {
         {tab === 'profile' && <ProfileScreen me={me} onUnavailableSupport={() => setSoon('Поддержка')} />}
 
         {tab === 'history' && (
-          <HistoryScreen items={history} loading={historyLoading} onOpenWithdrawal={setOpenWithdrawal} onOpenChecks={() => setTransferOpen(true)} onOpenOrder={setOpenOrder} />
+          <HistoryScreen items={history} loading={historyLoading} onOpenWithdrawal={setOpenWithdrawal} onOpenChecks={() => setTransferOpen(true)} onOpenOrder={setOpenOrder} onOpenDeposit={setOpenDeposit} />
         )}
       </main>
 
@@ -182,6 +184,7 @@ export function App() {
         onCreated={refreshAccount}
         onOpenOrder={(id) => { setService(null); setOpenOrder(id); }}
       />
+      <DepositDetailSheet deposit={openDeposit} onClose={() => setOpenDeposit(null)} supportUsername={support} />
       <OrderSheet id={openOrder} onClose={() => setOpenOrder(null)} supportUsername={support} />
       <TransferFlow open={transferOpen} onClose={() => setTransferOpen(false)} me={me} onChanged={refreshAccount} />
       <WithdrawalSheet

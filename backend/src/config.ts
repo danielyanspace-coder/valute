@@ -34,6 +34,12 @@ export const config = {
   depositMinUsdt: num('DEPOSIT_MIN_USDT', 10),
   /** Account-level extended PUBLIC key m/44'/195'/0' (see scripts/tron-wallet.mjs). Empty: no addresses issued. */
   tronXpub: (process.env.TRON_XPUB ?? '').trim(),
+  /** Deposit watcher. A free key from trongrid.io lifts the anonymous rate limit. */
+  tronGridUrl: process.env.TRONGRID_URL || 'https://api.trongrid.io',
+  tronGridApiKey: process.env.TRONGRID_API_KEY ?? '',
+  depositPollMs: num('DEPOSIT_POLL_MS', 5000),
+  /** Addresses checked per poll; ~2 requests each. Keep low without an API key. */
+  depositBatch: num('DEPOSIT_BATCH', 3),
   /** Fines, parking, Steam: the user pays this much less USDT than at the Rapira price. */
   servicesDiscountPercent: num('SERVICES_DISCOUNT_PERCENT', 10),
   databasePath: process.env.DATABASE_PATH || 'data/wallet.db',

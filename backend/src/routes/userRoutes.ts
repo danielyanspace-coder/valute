@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import type { CreateCheckRequest, CreateOrderRequest, CreateWithdrawalRequest, DepositInfoDto, FineLookupDto, HistoryItem, MeDto, NotificationDto, SendTransferRequest, ServicesConfigDto } from '../../../shared/api.js';
 import type { DepositAddressService } from '../deposits/depositAddressService.js';
+import type { DepositService } from '../deposits/depositService.js';
 import { STEAM_MAX_RUB, STEAM_MIN_RUB, MAX_PARKING_RUB, MIN_PARKING_RUB } from '../../../shared/services.js';
 import type { FineLookup } from '../orders/fineLookup.js';
 import type { OrderService } from '../orders/orderService.js';
@@ -23,6 +24,8 @@ export interface UserRouteDeps {
   depositMinUsdt: number;
   /** null until TRON_XPUB is configured. */
   depositAddresses: DepositAddressService | null;
+  /** null until TRON_XPUB is configured. */
+  deposits: DepositService | null;
   orders: OrderService;
   fineLookup: FineLookup;
   servicesDiscountPercent: number;
@@ -83,6 +86,7 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
       const t = n.transferId ? deps.transfers.transfer(n.transferId) : undefined;
       const c = n.checkId ? deps.transfers.check(n.checkId) : undefined;
       const o = n.orderId ? deps.orders.row(n.orderId) : undefined;
+      const d = n.depositId && deps.deposits ? deps.deposits.get(n.depositId) : null;
       return {
         id: n.id,
         type: n.type,
@@ -90,6 +94,7 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
         transfer: t ? deps.transfers.transferDto(t, uid) : null,
         check: c ? deps.transfers.checkDto(c) : null,
         order: o ? deps.orders.toUserDto(o) : null,
+        deposit: d && deps.deposits ? deps.deposits.toUserDto(d) : null,
         createdAt: n.createdAt,
       };
     });
@@ -103,6 +108,7 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     const tron = deps.depositAddresses
       ? { address: deps.depositAddresses.forUser(uid) }
       : deps.users.depositAddresses(uid).find((a) => a.chain === 'TRON');
+    deps.deposits?.markViewed(uid); // the user is about to send: watch the address closely
     return {
       token: 'USDT',
       network: 'TRC20',
@@ -116,7 +122,11 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
   app.get('/api/history', async (req) => {
     const uid = req.user!.id;
     const orders = deps.orders.listForUser(uid).map((o): HistoryItem => ({ type: 'order', at: o.created_at, order: deps.orders.toUserDto(o) }));
-    return { items: [...deps.transfers.history(uid), ...orders].sort((a, b) => b.at - a.at).slice(0, 100) };
+    const deposits = (deps.deposits?.listForUser(uid) ?? []).map((d): HistoryItem => {
+      const deposit = deps.deposits!.toUserDto(d);
+      return { type: 'deposit', at: deposit.createdAt, deposit };
+    });
+    return { items: [...deps.transfers.history(uid), ...orders, ...deposits].sort((a, b) => b.at - a.at).slice(0, 100) };
   });
 
   // ---------- Services: fines, parking, Steam ----------

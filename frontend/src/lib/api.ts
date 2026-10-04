@@ -1,5 +1,7 @@
 import type {
   AdminCounts,
+  AdminDepositCounts,
+  AdminDepositDto,
   AdminUserDto,
   AdminWithdrawalDto,
   AdminWithdrawalListItem,
@@ -100,6 +102,9 @@ export interface AdminApi {
   orderClarify(id: number, message: string): Promise<AdminOrderDto>;
   orderReject(id: number, reason: string): Promise<AdminOrderDto>;
   orderNote(id: number, text: string): Promise<AdminOrderDto>;
+  deposits(status: string): Promise<{ items: AdminDepositDto[]; counts: AdminDepositCounts; enabled: boolean }>;
+  depositCredit(id: number, note: string): Promise<AdminDepositDto>;
+  depositReject(id: number, reason: string): Promise<AdminDepositDto>;
 }
 
 async function request<T>(method: string, path: string, auth: string | undefined, body?: unknown): Promise<T> {
@@ -159,6 +164,9 @@ export function httpAdminApi(token: string): AdminApi {
     orderClarify: (id, message) => post(`/orders/${id}/clarify`, { message }),
     orderReject: (id, reason) => post(`/orders/${id}/reject`, { reason }),
     orderNote: (id, text) => post(`/orders/${id}/note`, { text }),
+    deposits: (status) => request('GET', `/api/admin/deposits?status=${status}`, auth),
+    depositCredit: (id, note) => post(`/deposits/${id}/credit`, { note }),
+    depositReject: (id, reason) => post(`/deposits/${id}/reject`, { reason }),
   };
 }
 

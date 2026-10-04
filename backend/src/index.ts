@@ -11,6 +11,9 @@ import { NotificationService, TelegramBotSender } from './notifications/notifica
 import { RateService } from './rates/rateService.js';
 import { UserRepo } from './users/userRepo.js';
 import { DepositAddressService } from './deposits/depositAddressService.js';
+import { DepositService, type DepositServiceOptions } from './deposits/depositService.js';
+import { USDT_MICRO } from '../../shared/payout.js';
+import { TronGridClient } from './deposits/tronClient.js';
 import { WithdrawalService } from './withdrawals/withdrawalService.js';
 import { TransferService } from './transfers/transferService.js';
 import { TelegramApi, WalletBot } from './bot/bot.js';
@@ -44,10 +47,18 @@ const fineLookup = new NoFineLookup();
 const orders = new OrderService(db, users, ledger, notifications, withdrawals, fineLookup, config.servicesDiscountPercent);
 
 const depositAddresses = config.tronXpub ? new DepositAddressService(db, config.tronXpub) : null;
+const aml = new AmlService(amlChecks);
+const depositOpts: DepositServiceOptions = {
+  minDepositMicro: Math.round(config.depositMinUsdt * USDT_MICRO),
+  batchSize: config.depositBatch,
+};
+const deposits = depositAddresses
+  ? new DepositService(db, new TronGridClient(config.tronGridUrl, config.tronGridApiKey), aml, ledger, users, notifications, depositOpts)
+  : null;
 
 const app = buildApp({
   rates,
-  aml: new AmlService(amlChecks),
+  aml,
   users,
   ledger,
   withdrawals,
@@ -63,6 +74,7 @@ const app = buildApp({
   supportUsername: config.supportUsername,
   depositMinUsdt: config.depositMinUsdt,
   depositAddresses,
+  deposits,
 });
 logError = (err) => app.log.error({ err }, 'bot notification failed');
 
@@ -74,6 +86,21 @@ setInterval(() => {
     app.log.error({ err }, 'auto-confirm failed');
   }
 }, AUTO_CONFIRM_TICK_MS).unref();
+
+// Deposit watcher: one pass at a time, never overlapping.
+if (deposits) {
+  depositOpts.log = app.log;
+  const loop = async () => {
+    try {
+      await deposits.tick();
+    } catch (err) {
+      app.log.error({ err }, 'deposit watcher failed');
+    }
+    setTimeout(loop, config.depositPollMs).unref();
+  };
+  void loop();
+  if (!config.tronGridApiKey) app.log.warn('TRONGRID_API_KEY is not set: deposit checks use the anonymous TronGrid limit');
+}
 
 await rates.start(config.ratePollMs, (err) => app.log.error({ err }, 'rate refresh failed'));
 

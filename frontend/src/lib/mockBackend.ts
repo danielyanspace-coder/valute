@@ -3,6 +3,9 @@
 // included, can be clicked through without a server or Telegram.
 import type {
   AdminCounts,
+  AdminDepositCounts,
+  AdminDepositDto,
+  DepositDto,
   AdminUserDto,
   AdminWithdrawalDto,
   AdminWithdrawalListItem,
@@ -96,7 +99,8 @@ const fail = (status: number, message: string): never => {
 };
 const delay = <T>(v: T) => new Promise<T>((r) => setTimeout(() => r(structuredClone(v)), 180));
 const MIN = 60_000;
-const DAY = 24 * 60 * MIN;
+const HOUR = 60 * MIN;
+const DAY = 24 * HOUR;
 
 export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoin[] }) {
   const now = () => Date.now();
@@ -154,6 +158,67 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
   const notifications: (NotificationDto & { userId: number; seen: boolean })[] = [];
   let transferId = 1;
   let checkId = 1;
+
+  // Deposits: seeded history plus one simulated incoming transfer after the deposit screen is opened.
+  type MockDeposit = Omit<AdminDepositDto, 'user'> & { userId: number };
+  const deposits: MockDeposit[] = [];
+  let depositId = 1;
+  const addDeposit = (userId: number, amountUsdt: number, status: MockDeposit['status'], at: number, extra: Partial<MockDeposit> = {}): MockDeposit => {
+    const hex = (n: number) => Array.from({ length: n }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');
+    const d: MockDeposit = {
+      id: depositId++, userId, status, amountMicro: Math.round(amountUsdt * USDT_MICRO),
+      address: users.find((u) => u.id === userId)?.addresses[0]?.address ?? 'T', txId: hex(64),
+      fromAddress: 'TJ' + 'W8kqZ3vHcN1mP6sYb2XgD9fJ4tLa7u', amlDecision: status === 'pending' ? null : 'clear',
+      amlSignals: status === 'pending' ? [] : [{ source: 'tether_blacklist', hit: false }, { source: 'ofac_sdn', hit: false }],
+      blockNumber: 86_800_000 + depositId * 1000, createdAt: at, confirmedAt: status === 'pending' ? null : at + MIN,
+      finishedAt: status === 'credited' || status === 'rejected' || status === 'below_min' ? at + MIN : null,
+      creditedBy: status === 'credited' ? 'auto' : null, adminNote: null, ...extra,
+    };
+    deposits.push(d);
+    return d;
+  };
+  addDeposit(1, 300, 'credited', t0 - 19 * DAY);
+  addDeposit(1, 100, 'credited', t0 - 6 * DAY);
+  addDeposit(2, 220, 'credited', t0 - 4 * DAY + HOUR);
+  addDeposit(2, 150, 'held', t0 - 35 * MIN, {
+    fromAddress: 'TNXoiAJ3dct8Fjg4M9fkLFh9S2v9TXc32G', amlDecision: 'reject',
+    amlSignals: [{ source: 'tether_blacklist', hit: true, detail: 'Адрес заморожен Tether' }, { source: 'ofac_sdn', hit: false }],
+  });
+  addDeposit(1, 4, 'below_min', t0 - 2 * DAY);
+  const depositDto = (d: MockDeposit): DepositDto => ({
+    id: d.id, status: d.status === 'failed' ? 'rejected' : d.status, amountMicro: d.amountMicro, network: 'TRC20', txId: d.txId,
+    fromAddress: d.fromAddress, createdAt: d.createdAt, creditedAt: d.status === 'credited' ? d.finishedAt : null,
+  });
+  const depositAdmin = (d: MockDeposit): AdminDepositDto => {
+    const u = users.find((x) => x.id === d.userId)!;
+    const { userId: _u, ...rest } = d;
+    return { ...rest, user: { id: u.id, username: u.username, firstName: u.firstName, telegramId: u.telegramId } };
+  };
+  const creditDeposit = (d: MockDeposit, by: 'auto' | 'admin', note: string | null) => {
+    if (!['pending', 'held', 'below_min'].includes(d.status)) fail(409, 'Пополнение уже обработано');
+    d.status = 'credited';
+    d.finishedAt = now();
+    d.creditedBy = by;
+    if (note) d.adminNote = note;
+    const u = users.find((x) => x.id === d.userId)!;
+    u.availableMicro += d.amountMicro;
+    u.depositedMicro += d.amountMicro;
+    notify(u.id, 'deposit_credited', null, { deposit: depositDto(d) });
+  };
+  let demoDepositSent = false;
+  const simulateDeposit = () => {
+    if (demoDepositSent) return;
+    demoDepositSent = true;
+    setTimeout(() => {
+      const d = addDeposit(1, 50, 'pending', now());
+      setTimeout(() => {
+        d.confirmedAt = now();
+        d.amlDecision = 'clear';
+        d.amlSignals = [{ source: 'tether_blacklist', hit: false }, { source: 'ofac_sdn', hit: false }];
+        creditDeposit(d, 'auto', null);
+      }, 9000);
+    }, 6000);
+  };
 
   const ev = (w: MockWithdrawal, actor: WithdrawalEventDto['actor'], type: string, data: Record<string, unknown>, at = now()) =>
     w.events.push({ id: eventId++, at, actor, type, data });
@@ -423,7 +488,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       delay({
         items: notifications
           .filter((n) => n.userId === me.id && !n.seen)
-          .map(({ id, type, withdrawalId, createdAt, transfer, check, order }) => ({ id, type, withdrawalId, createdAt, transfer, check, order })),
+          .map(({ id, type, withdrawalId, createdAt, transfer, check, order, deposit }) => ({ id, type, withdrawalId, createdAt, transfer, check, order, deposit })),
       }),
     markNotificationsSeen: (ids) => {
       for (const n of notifications) if (ids.includes(n.id)) n.seen = true;
@@ -437,11 +502,11 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
           .map((t): HistoryItem => ({ type: 'transfer', at: t.createdAt, transfer: transferDto(t, me.id) })),
         ...checks.filter((c) => c.creatorId === me.id).map((c): HistoryItem => ({ type: 'check', at: c.createdAt, check: checkDto(c) })),
         ...orders.filter((o) => o.userId === me.id).map((o): HistoryItem => ({ type: 'order', at: o.createdAt, order: orderDto(o) })),
+        ...deposits.filter((d) => d.userId === me.id && d.status !== 'failed').map((d): HistoryItem => ({ type: 'deposit', at: d.createdAt, deposit: depositDto(d) })),
       ];
       return delay({ items: items.sort((a, b) => b.at - a.at) });
     },
-    deposit: () =>
-      delay({
+    deposit: () => (simulateDeposit(), delay({
         token: 'USDT' as const,
         network: 'TRC20' as const,
         networkName: 'TRON (TRC-20)',
@@ -450,7 +515,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
         minDepositMicro: 10 * USDT_MICRO,
         confirmations: 20,
         demo: true,
-      }),
+      })),
     servicesConfig: () =>
       delay({ discountPercent: DISCOUNT, serviceRate: sRate(), fineLookupAvailable: true,
         steam: { minRub: STEAM_MIN_RUB, maxRub: STEAM_MAX_RUB }, parking: { minRub: MIN_PARKING_RUB, maxRub: MAX_PARKING_RUB } }),
@@ -656,6 +721,26 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       const o = orders.find((x) => x.id === id) ?? fail(404, 'Заявка не найдена');
       o.events.push({ id: eventId++, at: now(), actor: 'admin', type: 'note', data: { text: text.trim() } });
       return delay(orderAdmin(id));
+    },
+    deposits: (status) => {
+      const c: AdminDepositCounts = { held: 0, below_min: 0, pending: 0, credited: 0, rejected: 0 };
+      for (const d of deposits) if (d.status !== 'failed') c[d.status]++;
+      const items = deposits.filter((d) => status === 'all' || d.status === status).slice().reverse().map(depositAdmin);
+      return delay({ items, counts: c, enabled: true });
+    },
+    depositCredit: (id, note) => {
+      const d = deposits.find((x) => x.id === id) ?? fail(404, 'Пополнение не найдено');
+      creditDeposit(d, 'admin', note.trim() || null);
+      return delay(depositAdmin(d));
+    },
+    depositReject: (id, reason) => {
+      if (!reason.trim()) fail(400, 'Укажите причину');
+      const d = deposits.find((x) => x.id === id) ?? fail(404, 'Пополнение не найдено');
+      if (!['held', 'below_min'].includes(d.status)) fail(409, 'Пополнение уже обработано');
+      d.status = 'rejected';
+      d.finishedAt = now();
+      d.adminNote = reason.trim();
+      return delay(depositAdmin(d));
     },
   };
 

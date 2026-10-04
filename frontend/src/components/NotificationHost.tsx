@@ -26,9 +26,9 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
     await api.markNotificationsSeen(items.map((n) => n.id)).catch(() => {});
     onAnything();
     // Show the most important one; the rest are reflected in balances and history.
-    const order = ['contact_support', 'confirm_receipt', 'order_clarify', 'withdrawal_rejected', 'order_rejected', 'order_paid', 'transfer_received', 'check_claimed', 'withdrawal_completed'];
+    const order = ['contact_support', 'confirm_receipt', 'order_clarify', 'withdrawal_rejected', 'order_rejected', 'order_paid', 'deposit_credited', 'transfer_received', 'check_claimed', 'withdrawal_completed'];
     const top = [...items].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))[0];
-    hapticNotify(['withdrawal_completed', 'transfer_received', 'check_claimed'].includes(top.type) ? 'success' : 'warning');
+    hapticNotify(['withdrawal_completed', 'transfer_received', 'check_claimed', 'deposit_credited'].includes(top.type) ? 'success' : 'warning');
     // contact_support: the blocking screen is driven by /api/me (refreshed above), nothing to show here.
     if (top.type === 'contact_support') return;
     // Service orders: open the order itself, it shows the status, the question or the reason.
@@ -56,6 +56,19 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
             {t.kind === 'check' ? 'Чек от' : 'Перевод от'} {t.counterparty.username ? `@${t.counterparty.username}` : t.counterparty.firstName}
             {t.comment ? `: «${t.comment}»` : ''}. Средства уже на балансе.
           </p>
+          <div className="sheet-actions"><button className="btn primary" onClick={close}>Отлично</button></div>
+        </div>
+      </Sheet>
+    );
+  }
+
+  if (modal.type === 'deposit_credited' && modal.deposit) {
+    return (
+      <Sheet open onClose={close} title="">
+        <div className="modal-center">
+          <span className="modal-icon ok"><IconPlus size={26} /></span>
+          <b>+{shortUsdt(modal.deposit.amountMicro)} USDT</b>
+          <p className="muted">Пополнение через TRON (TRC-20) зачислено на баланс.</p>
           <div className="sheet-actions"><button className="btn primary" onClick={close}>Отлично</button></div>
         </div>
       </Sheet>
