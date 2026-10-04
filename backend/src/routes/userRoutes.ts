@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import type { CreateCheckRequest, CreateOrderRequest, CreateWithdrawalRequest, DepositInfoDto, FineLookupDto, HistoryItem, MeDto, NotificationDto, SendTransferRequest, ServicesConfigDto } from '../../../shared/api.js';
+import type { DepositAddressService } from '../deposits/depositAddressService.js';
 import { STEAM_MAX_RUB, STEAM_MIN_RUB, MAX_PARKING_RUB, MIN_PARKING_RUB } from '../../../shared/services.js';
 import type { FineLookup } from '../orders/fineLookup.js';
 import type { OrderService } from '../orders/orderService.js';
@@ -20,6 +21,8 @@ export interface UserRouteDeps {
   botUsername: () => string;
   users: UserRepo;
   depositMinUsdt: number;
+  /** null until TRON_XPUB is configured. */
+  depositAddresses: DepositAddressService | null;
   orders: OrderService;
   fineLookup: FineLookup;
   servicesDiscountPercent: number;
@@ -93,10 +96,13 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     return { items };
   });
 
-  // Deposits are USDT TRC-20 only. Addresses are issued once HD derivation is configured;
-  // until then the app shows the deposit screen with "address is being prepared".
+  // Deposits are USDT TRC-20 only. The address is issued on the first visit of the deposit
+  // screen; without TRON_XPUB the app shows "address is being prepared".
   app.get('/api/deposit', async (req): Promise<DepositInfoDto> => {
-    const tron = deps.users.depositAddresses(req.user!.id).find((a) => a.chain === 'TRON');
+    const uid = req.user!.id;
+    const tron = deps.depositAddresses
+      ? { address: deps.depositAddresses.forUser(uid) }
+      : deps.users.depositAddresses(uid).find((a) => a.chain === 'TRON');
     return {
       token: 'USDT',
       network: 'TRC20',

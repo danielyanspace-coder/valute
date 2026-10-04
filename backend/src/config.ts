@@ -32,6 +32,8 @@ export const config = {
   chainalysisSanctionsApiKey: process.env.CHAINALYSIS_SANCTIONS_API_KEY ?? '',
   /** Deposits below this are not credited (dust and spam transfers). */
   depositMinUsdt: num('DEPOSIT_MIN_USDT', 1),
+  /** Account-level extended PUBLIC key m/44'/195'/0' (see scripts/tron-wallet.mjs). Empty: no addresses issued. */
+  tronXpub: (process.env.TRON_XPUB ?? '').trim(),
   /** Fines, parking, Steam: the user pays this much less USDT than at the Rapira price. */
   servicesDiscountPercent: num('SERVICES_DISCOUNT_PERCENT', 10),
   databasePath: process.env.DATABASE_PATH || 'data/wallet.db',

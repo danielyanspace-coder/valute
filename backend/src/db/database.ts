@@ -193,6 +193,13 @@ const MIGRATIONS: string[] = [
 
   ALTER TABLE notifications ADD COLUMN order_id INTEGER;
   `,
+  // 4: key/value settings that must survive restarts (e.g. which xpub issued the addresses).
+  `
+  CREATE TABLE app_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  `,
 ];
 
 export type Db = DatabaseSync;

@@ -12,7 +12,12 @@
   "dependencies": {
     "@fastify/cors": "^11.3.0",
     "@fastify/static": "^10.1.5",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
     "@resvg/resvg-js": "^2.6.2",
+    "@scure/base": "^2.4.0",
+    "@scure/bip32": "^2.4.0",
+    "@scure/bip39": "^2.4.0",
     "fastify": "^5.12.5",
     "jpeg-js": "^0.4.4"
   },

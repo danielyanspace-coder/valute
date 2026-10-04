@@ -10,6 +10,7 @@ import { Ledger } from './ledger/ledger.js';
 import { NotificationService, TelegramBotSender } from './notifications/notificationService.js';
 import { RateService } from './rates/rateService.js';
 import { UserRepo } from './users/userRepo.js';
+import { DepositAddressService } from './deposits/depositAddressService.js';
 import { WithdrawalService } from './withdrawals/withdrawalService.js';
 import { TransferService } from './transfers/transferService.js';
 import { TelegramApi, WalletBot } from './bot/bot.js';
@@ -42,6 +43,8 @@ const transfers = new TransferService(db, users, ledger, notifications, withdraw
 const fineLookup = new NoFineLookup();
 const orders = new OrderService(db, users, ledger, notifications, withdrawals, fineLookup, config.servicesDiscountPercent);
 
+const depositAddresses = config.tronXpub ? new DepositAddressService(db, config.tronXpub) : null;
+
 const app = buildApp({
   rates,
   aml: new AmlService(amlChecks),
@@ -59,6 +62,7 @@ const app = buildApp({
   allowDevAuth: config.allowDevAuth,
   supportUsername: config.supportUsername,
   depositMinUsdt: config.depositMinUsdt,
+  depositAddresses,
 });
 logError = (err) => app.log.error({ err }, 'bot notification failed');
 

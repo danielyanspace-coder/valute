@@ -17,6 +17,7 @@ import { renderCheckJpeg } from './checks/checkImage.js';
 import type { TransferService } from './transfers/transferService.js';
 import type { OrderService } from './orders/orderService.js';
 import type { FineLookup } from './orders/fineLookup.js';
+import type { DepositAddressService } from './deposits/depositAddressService.js';
 
 export interface AppDeps {
   rates: RateService;
@@ -35,6 +36,7 @@ export interface AppDeps {
   allowDevAuth: boolean;
   supportUsername: string;
   depositMinUsdt: number;
+  depositAddresses: DepositAddressService | null;
   staticDir?: string;
 }
 
