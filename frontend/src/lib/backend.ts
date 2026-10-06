@@ -9,3 +9,6 @@ const mock = IS_DEMO ? createMockBackend(__DEMO_SNAPSHOT__!) : null;
 export const api: Api = mock ? mock.api : httpApi;
 
 export const adminApi = (token: string): AdminApi => (mock ? mock.admin : httpAdminApi(token));
+
+/** Demo only: moves the mock clock forward (reminders come every 2 minutes). */
+export const demoWarp = mock ? mock.warp : null;

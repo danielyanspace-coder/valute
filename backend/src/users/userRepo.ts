@@ -11,6 +11,10 @@ export interface UserRow {
   language_code: string | null;
   blocked: number;
   missed_confirmations: number;
+  /** Set while the operator requires the user to contact support. */
+  support_lock_at: number | null;
+  /** Set when the bot got "blocked by the user" (403); cleared on the next delivered message. */
+  bot_blocked_at: number | null;
   created_at: number;
   last_seen_at: number;
 }
@@ -55,6 +59,36 @@ export class UserRepo {
 
   setBlocked(id: number, blocked: boolean): void {
     this.db.prepare('UPDATE users SET blocked = ? WHERE id = ?').run(blocked ? 1 : 0, id);
+  }
+
+  findByTelegramId(telegramId: number): UserRow | undefined {
+    return this.db.prepare('SELECT * FROM users WHERE telegram_id = ?').get(telegramId) as unknown as UserRow | undefined;
+  }
+
+  setSupportLock(id: number, locked: boolean): void {
+    this.db.prepare('UPDATE users SET support_lock_at = ? WHERE id = ?').run(locked ? this.now() : null, id);
+  }
+
+  markBotBlocked(telegramId: number, blocked: boolean): void {
+    if (blocked) this.db.prepare('UPDATE users SET bot_blocked_at = COALESCE(bot_blocked_at, ?) WHERE telegram_id = ?').run(this.now(), telegramId);
+    else this.db.prepare('UPDATE users SET bot_blocked_at = NULL WHERE telegram_id = ? AND bot_blocked_at IS NOT NULL').run(telegramId);
+  }
+
+  /** Admin search: @username, name, Telegram ID or internal ID. */
+  search(q: string, limit = 50): UserRow[] {
+    const text = q.trim().replace(/^@/, '');
+    if (!text) return this.db.prepare('SELECT * FROM users ORDER BY last_seen_at DESC LIMIT ?').all(limit) as unknown as UserRow[];
+    const n = /^\d+$/.test(text) ? Number(text) : -1;
+    return this.db
+      .prepare(
+        `SELECT * FROM users WHERE username LIKE ? COLLATE NOCASE OR first_name LIKE ? COLLATE NOCASE OR last_name LIKE ? COLLATE NOCASE
+           OR telegram_id = ? OR id = ? ORDER BY last_seen_at DESC LIMIT ?`,
+      )
+      .all(`%${text}%`, `%${text}%`, `%${text}%`, n, n, limit) as unknown as UserRow[];
+  }
+
+  allTelegramIds(): { id: number; telegram_id: number }[] {
+    return this.db.prepare('SELECT id, telegram_id FROM users ORDER BY id').all() as unknown as { id: number; telegram_id: number }[];
   }
 
   incrementMissedConfirmations(id: number): void {

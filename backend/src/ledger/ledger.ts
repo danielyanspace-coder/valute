@@ -2,6 +2,9 @@ import type { Db } from '../db/database.js';
 
 export type Bucket = 'available' | 'frozen';
 
+/** Ledger kind of a shadow-obligation hold; never triggers another hold. */
+export const OBLIGATION_REPAY = 'obligation_repay';
+
 export interface Balances {
   availableMicro: number;
   frozenMicro: number;
@@ -22,6 +25,12 @@ interface Entry {
  * so the sum over both buckets only changes on real inflows and outflows.
  */
 export class Ledger {
+  /**
+   * Called inside the same DB transaction whenever a user's available balance grows.
+   * Shadow obligations use it to hold money back before the user can spend it.
+   */
+  onAvailableCredit: ((userId: number) => void) | null = null;
+
   constructor(
     private readonly db: Db,
     private readonly now: () => number = Date.now,
@@ -41,9 +50,12 @@ export class Ledger {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const now = this.now();
+    const credited = new Set<number>();
     for (const e of entries) {
       stmt.run(e.userId, e.bucket, e.amountMicro, e.kind, e.refType ?? null, e.refId ?? null, e.comment ?? null, now);
+      if (e.bucket === 'available' && e.amountMicro > 0 && e.kind !== OBLIGATION_REPAY) credited.add(e.userId);
     }
+    if (this.onAvailableCredit) for (const userId of credited) this.onAvailableCredit(userId);
   }
 
   /** Sum of entries of one kind for a user (e.g. all deposits). */

@@ -3,6 +3,8 @@ import { checkLink, CHECK_START_PREFIX, parseInlineQuery, shortUsdt } from '../.
 import type { Ledger } from '../ledger/ledger.js';
 import type { TransferService, CheckRow } from '../transfers/transferService.js';
 import type { UserRepo } from '../users/userRepo.js';
+import { reminderMessage, userCan, type UserDealAction } from '../../../shared/deals.js';
+import { inlineMarkup, type InlineButton } from '../notifications/messenger.js';
 import type { WithdrawalService } from '../withdrawals/withdrawalService.js';
 
 /** Thin Bot API client. */
@@ -30,6 +32,14 @@ interface Update {
   message?: { chat: { id: number; type: string }; from?: TelegramUser; text?: string };
   inline_query?: { id: string; from: TelegramUser; query: string };
   chosen_inline_result?: { result_id: string; from: TelegramUser; inline_message_id?: string };
+  callback_query?: CallbackQuery;
+}
+
+interface CallbackQuery {
+  id: string;
+  from: TelegramUser;
+  data?: string;
+  message?: { message_id: number; chat: { id: number } };
 }
 
 export interface BotDeps {
@@ -39,6 +49,8 @@ export interface BotDeps {
   withdrawals: WithdrawalService;
   /** Public HTTPS address of this server (the Mini App URL). Needed for check images and the "open wallet" button. */
   publicUrl: string;
+  /** Support account without "@": where locked users are sent. */
+  supportUsername: string;
   log: { info: (o: object, m?: string) => void; error: (o: object, m?: string) => void };
 }
 
@@ -82,7 +94,7 @@ export class WalletBot {
       try {
         const updates = await this.api.call<Update[]>(
           'getUpdates',
-          { offset: this.offset, timeout: 30, allowed_updates: ['message', 'inline_query', 'chosen_inline_result'] },
+          { offset: this.offset, timeout: 30, allowed_updates: ['message', 'inline_query', 'chosen_inline_result', 'callback_query'] },
           40_000,
         );
         for (const u of updates) {
@@ -97,6 +109,7 @@ export class WalletBot {
   }
 
   async handle(u: Update): Promise<unknown> {
+    if (u.callback_query) return this.onCallback(u.callback_query);
     if (u.inline_query) return this.onInlineQuery(u.inline_query);
     if (u.chosen_inline_result) return this.onChosen(u.chosen_inline_result);
     if (u.message?.text && u.message.from && u.message.chat.type === 'private') return this.onMessage(u.message.from, u.message.text);
@@ -106,6 +119,7 @@ export class WalletBot {
 
   private async onMessage(from: TelegramUser, text: string): Promise<unknown> {
     const user = this.deps.users.upsertFromTelegram(from);
+    if (user.support_lock_at) return this.sendLock(from.id);
     const [cmd, payload = ''] = text.trim().split(/\s+/, 2);
     if (cmd === '/start' && payload.startsWith(CHECK_START_PREFIX)) return this.claim(from.id, user.id, payload.slice(CHECK_START_PREFIX.length));
     if (cmd === '/send') return this.reply(from.id, this.howToSend());
@@ -147,7 +161,8 @@ export class WalletBot {
         ...(buttonText && this.deps.publicUrl ? { button: { text: buttonText, web_app: { url: this.deps.publicUrl } } } : {}),
       });
 
-    if (user.blocked || this.deps.withdrawals.contactLock(user.id)) return answer([], 'Операции недоступны · открыть кошелёк');
+    if (user.support_lock_at) return answer([], 'Свяжитесь с поддержкой');
+    if (user.blocked) return answer([], 'Операции недоступны · открыть кошелёк');
     const balance = this.deps.ledger.balances(user.id).availableMicro;
 
     if (parsed.kind === 'empty') return answer([], `Введите сумму, например 10 · баланс ${shortUsdt(balance)} USDT`);
@@ -208,6 +223,91 @@ export class WalletBot {
         reply_markup: { inline_keyboard: [] },
       })
       .catch((err) => this.deps.log.error({ err }, 'edit claimed check failed'));
+  }
+
+  // ---------- Deal reminders: buttons under the bot messages ----------
+
+  /**
+   * dr = "received" (asks to confirm the amount), dy = confirmed, db = back,
+   * dn = "not received", da = "other amount" without the Mini App URL.
+   */
+  private async onCallback(q: CallbackQuery): Promise<unknown> {
+    const answer = (text?: string, alert = false) =>
+      this.api.call('answerCallbackQuery', { callback_query_id: q.id, ...(text ? { text, show_alert: alert } : {}) }).catch(() => {});
+    const user = this.deps.users.upsertFromTelegram(q.from);
+    const [kind, idStr] = (q.data ?? '').split(':');
+    const id = Number(idStr);
+    const chatId = q.message?.chat.id;
+    const messageId = q.message?.message_id;
+    const edit = (text: string, buttons: InlineButton[][] = []) =>
+      chatId && messageId
+        ? this.api.call('editMessageText', { chat_id: chatId, message_id: messageId, text, reply_markup: inlineMarkup(buttons) }).catch(() => {})
+        : Promise.resolve();
+
+    if (user.support_lock_at) {
+      await answer('Свяжитесь с поддержкой', true);
+      return this.sendLock(q.from.id);
+    }
+    if (!['dr', 'dy', 'db', 'dn', 'da'].includes(kind) || !Number.isInteger(id)) return answer();
+
+    let w;
+    try {
+      w = this.deps.withdrawals.getForUser(user.id, id);
+    } catch {
+      return answer('Заявка не найдена', true);
+    }
+    const now = Date.now();
+    const timing = { status: w.status, enteredAt: w.entered_at };
+    const can = (a: UserDealAction) => userCan(timing, a, now);
+    const sum = `${w.amount_rub.toLocaleString('ru-RU')} ₽`;
+    const stale = async () => {
+      await answer('Сделка уже обновилась, актуальное состояние в кошельке', true);
+      return edit(`Заявка №${w.id}: актуальное состояние смотрите в кошельке.`, this.openWallet());
+    };
+
+    try {
+      switch (kind) {
+        case 'dr':
+          if (!can('received')) return stale();
+          await answer();
+          return edit(`Вам поступила сумма ${sum} по заявке №${w.id}?`, [
+            [{ text: `Да, ${sum} поступили`, callback: `dy:${w.id}` }],
+            [{ text: 'Назад', callback: `db:${w.id}` }],
+          ]);
+        case 'db': {
+          if (!userCan(timing, 'received', now)) return stale();
+          await answer();
+          const msg = reminderMessage(Math.max(1, w.reminders_sent), w.amount_rub, w.id);
+          return edit(msg.text, this.deps.withdrawals.dealButtons(w, msg.receivedLabel));
+        }
+        case 'dy':
+          this.deps.withdrawals.userReceived(user.id, w.id);
+          await answer('Спасибо! Получение подтверждено');
+          return edit(`Заявка №${w.id}: получение ${sum} подтверждено. Спасибо!`);
+        case 'dn':
+          this.deps.withdrawals.userNotReceived(user.id, w.id);
+          await answer('Мы проверим платёж');
+          return edit(`Заявка №${w.id}: вы сообщили, что оплата не поступила. Мы проверим платёж. Если деньги придут, подтвердите получение в кошельке.`, this.openWallet());
+        case 'da':
+          return answer('Откройте кошелёк и укажите сумму, которая поступила', true);
+      }
+    } catch (err) {
+      await answer((err as Error).message || 'Не удалось выполнить действие', true);
+      return edit(`Заявка №${w.id}: актуальное состояние смотрите в кошельке.`, this.openWallet());
+    }
+  }
+
+  private openWallet(): InlineButton[][] {
+    return this.deps.publicUrl ? [[{ text: 'Открыть кошелёк', webApp: this.deps.publicUrl }]] : [];
+  }
+
+  private sendLock(chatId: number) {
+    const s = this.deps.supportUsername;
+    return this.api.call('sendMessage', {
+      chat_id: chatId,
+      text: 'Свяжитесь с поддержкой. Операции в кошельке приостановлены до связи с нами.',
+      ...(s ? { reply_markup: inlineMarkup([[{ text: 'Написать в поддержку', url: `https://t.me/${s}` }]]) } : {}),
+    });
   }
 
   private reply(chatId: number, text: string) {

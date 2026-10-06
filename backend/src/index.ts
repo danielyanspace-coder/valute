@@ -7,7 +7,11 @@ import { buildApp } from './app.js';
 import { config } from './config.js';
 import { openDatabase } from './db/database.js';
 import { Ledger } from './ledger/ledger.js';
-import { NotificationService, TelegramBotSender } from './notifications/notificationService.js';
+import { NotificationService } from './notifications/notificationService.js';
+import { TelegramMessenger } from './notifications/messenger.js';
+import { AuditLog } from './audit/auditLog.js';
+import { ObligationService } from './obligations/obligationService.js';
+import { BroadcastService } from './broadcasts/broadcastService.js';
 import { RateService } from './rates/rateService.js';
 import { UserRepo } from './users/userRepo.js';
 import { DepositAddressService } from './deposits/depositAddressService.js';
@@ -20,7 +24,8 @@ import { TelegramApi, WalletBot } from './bot/bot.js';
 import { NoFineLookup } from './orders/fineLookup.js';
 import { OrderService } from './orders/orderService.js';
 
-const AUTO_CONFIRM_TICK_MS = 15_000;
+/** Deal reminders go every 2 minutes; a 5-second tick keeps them on time. */
+const DEAL_TICK_MS = 5_000;
 
 const rates = new RateService({
   walletMarkupPercent: config.rateWalletMarkupPercent,
@@ -36,9 +41,15 @@ const db = openDatabase(config.databasePath);
 const users = new UserRepo(db);
 const ledger = new Ledger(db);
 let logError: (err: unknown) => void = console.error;
-const botSender = config.telegramBotToken ? new TelegramBotSender(config.telegramBotToken, config.webAppUrl) : null;
-const notifications = new NotificationService(db, botSender, (err) => logError(err));
-const withdrawals = new WithdrawalService(db, users, ledger, notifications);
+const messenger = config.telegramBotToken
+  ? new TelegramMessenger(config.telegramBotToken, config.webAppUrl, (chatId, blocked) => users.markBotBlocked(chatId, blocked))
+  : null;
+const notifications = new NotificationService(db, messenger, (err) => logError(err));
+const audit = new AuditLog(db);
+const withdrawals = new WithdrawalService(db, users, ledger, notifications, audit, messenger, config.webAppUrl);
+const obligations = new ObligationService(db, ledger, users, notifications, audit, config.supportUsername);
+withdrawals.obligations = obligations;
+const broadcasts = new BroadcastService(db, users, messenger, audit, config.adminTelegramId);
 let bot: WalletBot | null = null;
 const botUsername = () => bot?.username || config.botUsername;
 const transfers = new TransferService(db, users, ledger, notifications, withdrawals, botUsername);
@@ -51,6 +62,7 @@ const aml = new AmlService(amlChecks);
 const depositOpts: DepositServiceOptions = {
   minDepositMicro: Math.round(config.depositMinUsdt * USDT_MICRO),
   batchSize: config.depositBatch,
+  audit,
 };
 const deposits = depositAddresses
   ? new DepositService(db, new TronGridClient(config.tronGridUrl, config.tronGridApiKey), aml, ledger, users, notifications, depositOpts)
@@ -75,17 +87,23 @@ const app = buildApp({
   depositMinUsdt: config.depositMinUsdt,
   depositAddresses,
   deposits,
+  audit,
+  obligations,
+  broadcasts,
 });
 logError = (err) => app.log.error({ err }, 'bot notification failed');
 
-setInterval(() => {
+// Deal timer: reminders 1-5 and the switch to "inactive". One pass at a time.
+const dealLoop = async () => {
   try {
-    const n = withdrawals.autoConfirmDue();
-    if (n) app.log.info({ n }, 'withdrawals auto-confirmed');
+    await withdrawals.tick();
   } catch (err) {
-    app.log.error({ err }, 'auto-confirm failed');
+    app.log.error({ err }, 'deal timer failed');
   }
-}, AUTO_CONFIRM_TICK_MS).unref();
+  setTimeout(dealLoop, DEAL_TICK_MS).unref();
+};
+void dealLoop();
+void broadcasts.run(); // resume a broadcast interrupted by a restart
 
 // Deposit watcher: one pass at a time, never overlapping.
 if (deposits) {
@@ -106,7 +124,7 @@ await rates.start(config.ratePollMs, (err) => app.log.error({ err }, 'rate refre
 
 if (config.telegramBotToken) {
   bot = new WalletBot(new TelegramApi(config.telegramBotToken), {
-    users, ledger, transfers, withdrawals, publicUrl: config.webAppUrl, log: app.log,
+    users, ledger, transfers, withdrawals, publicUrl: config.webAppUrl, supportUsername: config.supportUsername, log: app.log,
   });
   // Without the bot the wallet still works; checks just cannot be posted to chats.
   await bot.start().catch((err) => app.log.error({ err }, 'bot failed to start'));

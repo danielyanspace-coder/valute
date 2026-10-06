@@ -7,6 +7,7 @@ import type { NotificationService } from '../notifications/notificationService.j
 import type { UserRepo } from '../users/userRepo.js';
 import { AppError } from '../withdrawals/withdrawalService.js';
 import type { IncomingTransfer, TronChain } from './tronClient.js';
+import type { AuditLog } from '../audit/auditLog.js';
 
 const CHAIN = 'TRON';
 const SEC = 1000;
@@ -61,6 +62,7 @@ export interface DepositServiceOptions {
   minDepositMicro: number;
   /** Address checks per tick, to stay inside TronGrid limits. */
   batchSize: number;
+  audit?: AuditLog;
   log?: { warn: (obj: unknown, msg?: string) => void; info: (obj: unknown, msg?: string) => void };
 }
 
@@ -197,6 +199,7 @@ export class DepositService {
         .run(this.now(), by, note, id);
       if (Number(res.changes) !== 1) throw new AppError(409, 'deposit_state', 'Пополнение уже обработано');
       const d = this.get(id)!;
+      this.opts.audit?.log({ actor: by === 'auto' ? 'system' : 'admin', type: 'deposit_credited', userId: d.user_id, amountMicro: d.amount_micro, data: { depositId: d.id, txId: d.tx_id } });
       this.ledger.post([{ userId: d.user_id, bucket: 'available', amountMicro: d.amount_micro, kind: 'deposit', refType: 'deposit', refId: d.id }]);
       return d;
     });

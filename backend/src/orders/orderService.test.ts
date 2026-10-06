@@ -5,6 +5,7 @@ import { openDatabase } from '../db/database.js';
 import { Ledger } from '../ledger/ledger.js';
 import { NotificationService } from '../notifications/notificationService.js';
 import { UserRepo, type UserRow } from '../users/userRepo.js';
+import { AuditLog } from '../audit/auditLog.js';
 import { WithdrawalService } from '../withdrawals/withdrawalService.js';
 import { NoFineLookup, type FineLookup } from './fineLookup.js';
 import { OrderService } from './orderService.js';
@@ -31,7 +32,7 @@ beforeEach(() => {
   users = new UserRepo(db);
   ledger = new Ledger(db);
   notifications = new NotificationService(db, { send: async (_t, text) => void bot.push(text) });
-  withdrawals = new WithdrawalService(db, users, ledger, notifications);
+  withdrawals = new WithdrawalService(db, users, ledger, notifications, new AuditLog(db));
   user = users.upsertFromTelegram({ id: 1, first_name: 'Fox', username: 'fox' });
   withdrawals.adjustBalance(user.id, 100 * U, 'test');
 });

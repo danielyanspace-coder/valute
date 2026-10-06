@@ -19,6 +19,9 @@ import type { OrderService } from './orders/orderService.js';
 import type { FineLookup } from './orders/fineLookup.js';
 import type { DepositAddressService } from './deposits/depositAddressService.js';
 import type { DepositService } from './deposits/depositService.js';
+import type { AuditLog } from './audit/auditLog.js';
+import type { ObligationService } from './obligations/obligationService.js';
+import type { BroadcastService } from './broadcasts/broadcastService.js';
 
 export interface AppDeps {
   rates: RateService;
@@ -39,6 +42,9 @@ export interface AppDeps {
   depositMinUsdt: number;
   depositAddresses: DepositAddressService | null;
   deposits: DepositService | null;
+  audit: AuditLog;
+  obligations: ObligationService;
+  broadcasts: BroadcastService;
   staticDir?: string;
 }
 

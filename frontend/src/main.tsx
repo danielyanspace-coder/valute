@@ -4,6 +4,7 @@ import { AdminApp } from './admin/AdminApp';
 import { App } from './App';
 import { IS_DEMO } from './lib/api';
 import { initTelegram } from './lib/telegram';
+import { demoWarp } from './lib/backend';
 import './styles.css';
 
 initTelegram('#07090d');
@@ -25,6 +26,9 @@ function DemoShell() {
       <div className="demo-switch">
         <button className={view === 'wallet' ? 'on' : ''} onClick={() => switchTo('wallet')}>Кошелёк</button>
         <button className={view === 'admin' ? 'on' : ''} onClick={() => switchTo('admin')}>Админка</button>
+        {demoWarp && (
+          <button className="warp" title="Перемотать время демо на 2 минуты" onClick={() => demoWarp?.(2 * 60_000)}>+2 мин</button>
+        )}
       </div>
       <div className="demo-pad" />
       {view === 'wallet' ? <App /> : <AdminApp />}

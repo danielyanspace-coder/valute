@@ -3,7 +3,7 @@ import type { AdminDepositCounts, AdminDepositDto } from '../../../shared/api';
 import type { AdminApi } from '../lib/api';
 import { fmtAgo, fmtDateTime, fmtMicroExact } from '../lib/format';
 import { usePolling } from '../lib/useInterval';
-import { Card, ContactClient, Row, TwoStep } from './AdminApp';
+import { Card, ContactClient, Row, TwoStep } from './ui';
 
 type Filter = keyof AdminDepositCounts | 'all';
 

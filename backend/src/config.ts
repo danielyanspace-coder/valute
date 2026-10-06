@@ -25,6 +25,8 @@ export const config = {
   allowDevAuth: process.env.ALLOW_DEV_AUTH === 'true',
   /** Password for the admin panel (/admin) and /api/admin/*. Empty = admin off. */
   adminToken: process.env.ADMIN_TOKEN ?? '',
+  /** Your own Telegram ID: broadcasts are test-sent here first. */
+  adminTelegramId: num('ADMIN_TELEGRAM_ID', 0),
   rpc: {
     TRON: process.env.TRON_RPC_URL || 'https://tron-rpc.publicnode.com/jsonrpc',
     ETH: process.env.ETH_RPC_URL || 'https://ethereum-rpc.publicnode.com',

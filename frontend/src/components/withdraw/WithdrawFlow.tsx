@@ -291,16 +291,16 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
             <div className="summary-freeze">Спишется {fmtMicro(amountMicro)} по курсу {fmtRub(payoutRate)}</div>
           </div>
           <div className="rules">
-            <Rule icon={<IconClock size={18} />} title="Подтвердите получение за 10 минут">
-              Когда мы отправим деньги, придёт уведомление. Проверьте счёт и нажмите «Деньги пришли». Если не успеете,
-              вывод подтвердится автоматически.
+            <Rule icon={<IconClock size={18} />} title="Подтвердите получение">
+              Когда деньги начнут путь, придёт уведомление в боте. Проверьте счёт и нажмите «Подтвердить получение».
+              Чем быстрее вы подтверждаете, тем выше ваш рейтинг и тем выгоднее курс для вас.
             </Rule>
-            <Rule icon={<IconChat size={18} />} title="Деньги не пришли?">
-              Нажмите в заявке «Деньги не пришли», и к вам подключится поддержка.
+            <Rule icon={<IconChat size={18} />} title="Пришла другая сумма или деньги не пришли?">
+              Сообщите об этом в заявке, мы проверим платёж. Заявку после создания отменить нельзя.
             </Rule>
-            <Rule icon={<IconAlert size={18} />} title="Не пропускайте подтверждение" tone="warn">
-              При регулярных пропусках доступ к кошельку может быть ограничен, а остаток выведен на указанный вами
-              кошелёк.
+            <Rule icon={<IconAlert size={18} />} title="Не пропускайте уведомления" tone="warn">
+              Если не ответить на 5 уведомлений, сделка уйдёт на рассмотрение администратора, а USDT останутся
+              замороженными до решения.
             </Rule>
           </div>
           <label className="checkbox">
@@ -322,7 +322,7 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
           <span className="done-icon"><IconCheck size={30} /></span>
           <b>Заявка принята</b>
           <p className="muted">
-            {fmtRub0(created.amountRub)} на {created.destination}. Мы пришлём уведомление, когда отправим деньги.
+            {fmtRub0(created.amountRub)} на {created.destination}. Мы пришлём уведомление, когда деньги начнут путь.
           </p>
           <div className="done-freeze">{fmtMicro(created.amountMicro)} заморожены до завершения вывода</div>
           <div className="sheet-actions">
@@ -383,7 +383,7 @@ function AmountField(props: {
   payoutRate: number;
 }) {
   const { amount, setAmount, maxRub } = props;
-  const presets = useMemo(() => [1000, 5000, 10000].filter((v) => v <= maxRub), [maxRub]);
+  const presets = useMemo(() => [5000, 10000, 50000].filter((v) => v <= maxRub), [maxRub]);
   return (
     <Field label="Сумма" error={props.error}>
       <div className="input with-suffix amount-input">
@@ -408,7 +408,7 @@ function AmountField(props: {
         <span>Доступно {fmtRub0(maxRub)}</span>
         <span>{props.amountMicro ? `Спишется ${fmtMicro(props.amountMicro)}` : props.payoutRate ? `1 USDT = ${fmtRub(props.payoutRate)}` : ''}</span>
       </div>
-      <span className="field-hint">Сумма кратна 100 ₽, минимум {rub.format(MIN_PAYOUT_RUB)} ₽</span>
+      <span className="field-hint">Сумма кратна 1000 ₽, минимум {rub.format(MIN_PAYOUT_RUB)} ₽</span>
     </Field>
   );
 }

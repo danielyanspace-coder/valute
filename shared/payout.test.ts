@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  cardBrand, formatCard, formatRuPhone, maxPayoutRub, nextStatus, normalizeRuPhone,
+  cardBrand, formatCard, formatRuPhone, maxPayoutRub, normalizeRuPhone,
   usdtMicroForRub, validateCard, validatePayoutRub, validateRuPhone,
 } from './payout.js';
 import { searchBanks } from './sbpBanks.js';
@@ -31,28 +31,19 @@ describe('card', () => {
 });
 
 describe('amount', () => {
-  it('requires ≥500 and a multiple of 100', () => {
-    expect(validatePayoutRub(500)).toBeNull();
-    expect(validatePayoutRub(400)).toMatch(/500/);
-    expect(validatePayoutRub(550)).toMatch(/кратна/);
-    expect(validatePayoutRub(1000, 900)).toMatch(/Недостаточно/);
+  it('requires ≥1000 and a multiple of 1000', () => {
+    expect(validatePayoutRub(1000)).toBeNull();
+    expect(validatePayoutRub(50_000)).toBeNull();
+    expect(validatePayoutRub(900)).toMatch(/1000/);
+    expect(validatePayoutRub(1500)).toMatch(/кратна/);
+    expect(validatePayoutRub(2000, 1900)).toMatch(/Недостаточно/);
   });
 
   it('converts rubles to micro-USDT exactly, rounding up', () => {
     expect(usdtMicroForRub(8223, 82.23)).toBe(100_000_000);
     expect(usdtMicroForRub(500, 82.23)).toBe(6_080_506); // 6.0805058… → up
-    expect(maxPayoutRub(100_000_000, 82.23)).toBe(8200);
+    expect(maxPayoutRub(100_000_000, 82.23)).toBe(8000);
     expect(usdtMicroForRub(maxPayoutRub(6_080_505, 82.23), 82.23)).toBeLessThanOrEqual(6_080_505);
-  });
-});
-
-describe('status machine', () => {
-  it('allows only the documented transitions', () => {
-    expect(nextStatus('pending', 'mark_sent')).toBe('sent');
-    expect(nextStatus('pending', 'confirm_user')).toBeNull();
-    expect(nextStatus('disputed', 'confirm_admin')).toBe('completed');
-    expect(nextStatus('disputed', 'mark_sent')).toBe('sent');
-    expect(nextStatus('completed', 'reject')).toBeNull();
   });
 });
 

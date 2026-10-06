@@ -3,6 +3,7 @@ import { openDatabase } from '../db/database.js';
 import { Ledger } from '../ledger/ledger.js';
 import { NotificationService } from '../notifications/notificationService.js';
 import { UserRepo, type UserRow } from '../users/userRepo.js';
+import { AuditLog } from '../audit/auditLog.js';
 import { WithdrawalService } from '../withdrawals/withdrawalService.js';
 import { TransferService } from './transferService.js';
 
@@ -22,7 +23,7 @@ beforeEach(() => {
   users = new UserRepo(db);
   ledger = new Ledger(db);
   notifications = new NotificationService(db, { send: async (tid, text) => void botMessages.push({ tid, text }) });
-  withdrawals = new WithdrawalService(db, users, ledger, notifications);
+  withdrawals = new WithdrawalService(db, users, ledger, notifications, new AuditLog(db));
   svc = new TransferService(db, users, ledger, notifications, withdrawals, () => 'ix_bot');
   alice = users.upsertFromTelegram({ id: 100, first_name: 'Alice', username: 'alice_ix' });
   bob = users.upsertFromTelegram({ id: 200, first_name: 'Bob', username: 'BobTheBuilder' });
@@ -97,11 +98,8 @@ describe('checks', () => {
     expect(svc.history(bob.id).map((h) => (h.type === 'transfer' ? h.transfer.kind : h.type)).sort()).toEqual(['check', 'direct']);
 
     withdrawals.adjustBalance(bob.id, 10 * U, 'test');
-    const w = withdrawals.create(bob, {
-      method: 'card', amountRub: 500, cardNumber: '2200000000000004', requestId: 'w', acceptedTerms: true,
-    }, { rate: 80, exchangeRate: 76 });
-    withdrawals.requestContact(w.id);
-    expect(() => svc.sendDirect(bob, { username: 'alice_ix', amount: '1', requestId: 'x' })).toThrow(/недоступен/);
-    expect(() => svc.createCheck(bob, { amount: '1' })).toThrow(/недоступен/);
+    users.setSupportLock(bob.id, true);
+    expect(() => svc.sendDirect(bob, { username: 'alice_ix', amount: '1', requestId: 'x' })).toThrow(/недоступно/);
+    expect(() => svc.createCheck(bob, { amount: '1' })).toThrow(/недоступно/);
   });
 });

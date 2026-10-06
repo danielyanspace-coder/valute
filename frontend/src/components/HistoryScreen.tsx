@@ -1,10 +1,10 @@
 import type { HistoryItem } from '../../../shared/api';
-import { STATUS_LABEL } from '../../../shared/payout';
+import { userStatusLabel } from '../../../shared/deals';
 import { ORDER_STATUS_LABEL, SERVICE_TITLE } from '../../../shared/services';
 import { SERVICE_LOGO } from './services/ServiceFlows';
 import { shortUsdt } from '../../../shared/transfers';
 import { fmtDateTime, fmtRub0 } from '../lib/format';
-import { IconArrowUpRight, IconCard, IconHistory, IconPlus } from './icons';
+import { IconAlert, IconArrowUpRight, IconCard, IconHistory, IconPlus } from './icons';
 import { CoinIcon } from './CoinIcon';
 import { DEPOSIT_STATUS_LABEL } from './deposit/DepositDetailSheet';
 import type { DepositDto } from '../../../shared/api';
@@ -40,7 +40,8 @@ export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks, 
               const w = h.withdrawal;
               return (
                 <Row key={`w${w.id}`} icon={<IconCard size={18} />} title={w.method === 'sbp' ? 'Вывод по СБП' : 'Вывод на карту'}
-                  sub={w.destination} amount={`−${fmtRub0(w.amountRub)}`} chip={STATUS_LABEL[w.status]} chipClass={`s-${w.status}`}
+                  sub={w.destination} amount={`−${fmtRub0(w.finalRub ?? w.amountRub)}`} chip={userStatusLabel({ status: w.status, enteredAt: w.enteredAt }, w.serverNow)}
+                  chipClass={`s-${w.status === 'completed' || w.status === 'user_confirmed' ? 'completed' : w.status === 'cancelled' ? 'rejected' : w.actions.length ? 'sent' : 'pending'}`}
                   at={w.createdAt} onClick={() => onOpenWithdrawal(w.id)} />
               );
             }
@@ -69,6 +70,13 @@ export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks, 
                   sub="USDT · TRON (TRC-20)" amount={`+${shortUsdt(d.amountMicro)} USDT`} amountClass={d.status === 'credited' ? 'up' : ''}
                   chip={d.status === 'credited' ? undefined : DEPOSIT_STATUS_LABEL[d.status]} chipClass={`dep-${d.status}`}
                   at={d.createdAt} onClick={() => onOpenDeposit(d)} />
+              );
+            }
+            if (h.type === 'deduction') {
+              const d = h.deduction;
+              return (
+                <Row key={`x${d.id}`} icon={<IconAlert size={17} />} title="Удержание" sub={d.reason}
+                  amount={`−${shortUsdt(d.amountMicro)} USDT`} at={d.createdAt} />
               );
             }
             const c = h.check;

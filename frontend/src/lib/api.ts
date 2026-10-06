@@ -1,30 +1,37 @@
 import type {
-  AdminCounts,
+  AdminAuditItem,
+  AdminBoardDto,
+  AdminBroadcastDto,
   AdminDepositCounts,
   AdminDepositDto,
-  AdminUserDto,
-  AdminWithdrawalDto,
-  AdminWithdrawalListItem,
+  AdminObligationDto,
   AdminOrderCounts,
   AdminOrderDto,
   AdminOrderListItem,
+  AdminUserListItem,
+  AdminUserPageDto,
+  AdminWithdrawalDto,
+  AdminWithdrawalListItem,
+  ArchiveQuery,
+  BroadcastRequest,
   CheckDto,
-  CreateOrderRequest,
-  FineLookupDto,
-  ServiceOrderDto,
-  ServicesConfigDto,
   CreateCheckRequest,
+  CreateObligationRequest,
+  CreateOrderRequest,
   CreateWithdrawalRequest,
   DepositInfoDto,
+  FineLookupDto,
   HistoryItem,
-  PersonDto,
-  SendTransferRequest,
-  TransferDto,
+  JournalQuery,
   MeDto,
   NotificationDto,
+  PersonDto,
+  SendTransferRequest,
+  ServiceOrderDto,
+  ServicesConfigDto,
+  TransferDto,
   WithdrawalDto,
 } from '../../../shared/api';
-import type { WithdrawalStatus } from '../../../shared/payout';
 import type { OrderStatus } from '../../../shared/services';
 import { tg } from './telegram';
 
@@ -67,8 +74,9 @@ export interface Api {
   withdrawals(): Promise<{ items: WithdrawalDto[] }>;
   withdrawal(id: number): Promise<WithdrawalDto>;
   createWithdrawal(req: CreateWithdrawalRequest): Promise<WithdrawalDto>;
-  confirmWithdrawal(id: number): Promise<WithdrawalDto>;
-  disputeWithdrawal(id: number): Promise<WithdrawalDto>;
+  dealReceived(id: number): Promise<WithdrawalDto>;
+  dealNotReceived(id: number): Promise<WithdrawalDto>;
+  dealOtherAmount(id: number, amountRub: number): Promise<WithdrawalDto>;
   notifications(): Promise<{ items: NotificationDto[] }>;
   markNotificationsSeen(ids: number[]): Promise<unknown>;
   history(): Promise<{ items: HistoryItem[] }>;
@@ -86,16 +94,36 @@ export interface Api {
   demoClaimCheck?(code: string): Promise<unknown>;
 }
 
+export type DealActionPath =
+  | 'take'
+  | 'entered'
+  | 'requisite-off'
+  | 'confirm'
+  | 'close'
+  | 'reopen'
+  | 'accept-correction'
+  | 'accept-original'
+  | 'cancel'
+  | 'external-id'
+  | 'note';
+
 export interface AdminApi {
-  list(status: WithdrawalStatus | 'all'): Promise<{ items: AdminWithdrawalListItem[]; counts: AdminCounts }>;
-  get(id: number): Promise<AdminWithdrawalDto>;
-  markSent(id: number): Promise<AdminWithdrawalDto>;
-  confirm(id: number): Promise<AdminWithdrawalDto>;
-  reject(id: number, reason: string): Promise<AdminWithdrawalDto>;
-  requestContact(id: number): Promise<AdminWithdrawalDto>;
-  note(id: number, text: string): Promise<AdminWithdrawalDto>;
-  adjustBalance(userId: number, amountUsdt: number, comment: string): Promise<AdminUserDto>;
-  setBlocked(userId: number, blocked: boolean): Promise<AdminUserDto>;
+  board(): Promise<AdminBoardDto>;
+  archive(q: ArchiveQuery): Promise<{ items: AdminWithdrawalListItem[] }>;
+  deal(id: number): Promise<AdminWithdrawalDto>;
+  dealAction(id: number, action: DealActionPath, body?: Record<string, unknown>): Promise<AdminWithdrawalDto>;
+  users(q: string): Promise<{ items: AdminUserListItem[] }>;
+  user(id: number): Promise<AdminUserPageDto>;
+  adjustBalance(userId: number, amountUsdt: number, comment: string): Promise<AdminUserPageDto>;
+  setBlocked(userId: number, blocked: boolean): Promise<AdminUserPageDto>;
+  setSupportLock(userId: number, locked: boolean): Promise<AdminUserPageDto>;
+  obligations(f: { status?: string; userId?: number }): Promise<{ items: AdminObligationDto[] }>;
+  createObligation(req: CreateObligationRequest): Promise<AdminObligationDto>;
+  writeOffObligation(id: number, comment: string): Promise<AdminObligationDto>;
+  journal(q: JournalQuery): Promise<{ items: AdminAuditItem[] }>;
+  broadcasts(): Promise<{ items: AdminBroadcastDto[] }>;
+  broadcastTest(req: BroadcastRequest): Promise<{ ok: boolean; error: string | null }>;
+  broadcastSend(req: BroadcastRequest): Promise<AdminBroadcastDto>;
   orders(status: OrderStatus | 'all'): Promise<{ items: AdminOrderListItem[]; counts: AdminOrderCounts }>;
   orderGet(id: number): Promise<AdminOrderDto>;
   orderPaid(id: number): Promise<AdminOrderDto>;
@@ -106,6 +134,12 @@ export interface AdminApi {
   depositCredit(id: number, note: string): Promise<AdminDepositDto>;
   depositReject(id: number, reason: string): Promise<AdminDepositDto>;
 }
+
+const qs = (o: object) =>
+  Object.entries(o)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '')
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+    .join('&');
 
 async function request<T>(method: string, path: string, auth: string | undefined, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
@@ -128,8 +162,9 @@ export const httpApi: Api = {
   withdrawals: () => request('GET', '/api/withdrawals', userAuth()),
   withdrawal: (id) => request('GET', `/api/withdrawals/${id}`, userAuth()),
   createWithdrawal: (req) => request('POST', '/api/withdrawals', userAuth(), req),
-  confirmWithdrawal: (id) => request('POST', `/api/withdrawals/${id}/confirm`, userAuth(), {}),
-  disputeWithdrawal: (id) => request('POST', `/api/withdrawals/${id}/dispute`, userAuth(), {}),
+  dealReceived: (id) => request('POST', `/api/withdrawals/${id}/received`, userAuth(), {}),
+  dealNotReceived: (id) => request('POST', `/api/withdrawals/${id}/not-received`, userAuth(), {}),
+  dealOtherAmount: (id, amountRub) => request('POST', `/api/withdrawals/${id}/other-amount`, userAuth(), { amountRub }),
   notifications: () => request('GET', '/api/notifications', userAuth()),
   markNotificationsSeen: (ids) => request('POST', '/api/notifications/seen', userAuth(), { ids }),
   history: () => request('GET', '/api/history', userAuth()),
@@ -149,15 +184,22 @@ export function httpAdminApi(token: string): AdminApi {
   const auth = `Bearer ${token}`;
   const post = <T>(path: string, body: unknown = {}) => request<T>('POST', `/api/admin${path}`, auth, body);
   return {
-    list: (status) => request('GET', `/api/admin/withdrawals?status=${status}`, auth),
-    get: (id) => request('GET', `/api/admin/withdrawals/${id}`, auth),
-    markSent: (id) => post(`/withdrawals/${id}/mark-sent`),
-    confirm: (id) => post(`/withdrawals/${id}/confirm`),
-    reject: (id, reason) => post(`/withdrawals/${id}/reject`, { reason }),
-    requestContact: (id) => post(`/withdrawals/${id}/request-contact`),
-    note: (id, text) => post(`/withdrawals/${id}/note`, { text }),
+    board: () => request('GET', '/api/admin/deals/board', auth),
+    archive: (q) => request('GET', `/api/admin/deals/archive?${qs(q)}`, auth),
+    deal: (id) => request('GET', `/api/admin/deals/${id}`, auth),
+    dealAction: (id, action, body = {}) => post(`/deals/${id}/${action}`, body),
+    users: (q) => request('GET', `/api/admin/users?${qs({ q })}`, auth),
+    user: (id) => request('GET', `/api/admin/users/${id}`, auth),
     adjustBalance: (userId, amountUsdt, comment) => post(`/users/${userId}/adjust`, { amountUsdt, comment }),
     setBlocked: (userId, blocked) => post(`/users/${userId}/block`, { blocked }),
+    setSupportLock: (userId, locked) => post(`/users/${userId}/support-lock`, { locked }),
+    obligations: (f) => request('GET', `/api/admin/obligations?${qs(f)}`, auth),
+    createObligation: (req) => post('/obligations', req),
+    writeOffObligation: (id, comment) => post(`/obligations/${id}/write-off`, { comment }),
+    journal: (q) => request('GET', `/api/admin/journal?${qs(q)}`, auth),
+    broadcasts: () => request('GET', '/api/admin/broadcasts', auth),
+    broadcastTest: (req) => post('/broadcasts/test', req),
+    broadcastSend: (req) => post('/broadcasts', { ...req, confirm: true }),
     orders: (status) => request('GET', `/api/admin/orders?status=${status}`, auth),
     orderGet: (id) => request('GET', `/api/admin/orders/${id}`, auth),
     orderPaid: (id) => post(`/orders/${id}/paid`),

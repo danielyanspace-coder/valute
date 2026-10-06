@@ -5,7 +5,7 @@ import { SERVICE_LOGO } from '../components/services/ServiceFlows';
 import type { AdminApi } from '../lib/api';
 import { fmtAgo, fmtDateTime, fmtMicro, fmtMicroExact, fmtRub, fmtRub0, fmtTime } from '../lib/format';
 import { usePolling } from '../lib/useInterval';
-import { ACTOR, Adjust, Card, ContactClient, Row, TwoStep, UserCard } from './AdminApp';
+import { ACTOR, Adjust, Card, ContactClient, Row, TwoStep, UserCard } from './ui';
 
 type Filter = OrderStatus | 'all';
 

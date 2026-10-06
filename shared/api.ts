@@ -1,5 +1,7 @@
 // Data shapes exchanged between the backend, the Mini App and the admin panel.
 import type { PayoutMethod, WithdrawalStatus } from './payout.js';
+import type { AuditActor, AuditType } from './audit.js';
+import type { BoardSection, DealResolution, UserDealAction } from './deals.js';
 import type { FineInfo, OrderStatus, ServiceKind } from './services.js';
 
 export interface MeDto {
@@ -18,10 +20,10 @@ export interface MeDto {
   blocked: boolean;
   supportUsername: string;
   /**
-   * Set while the operator asked the user to contact support and the deal is not finished:
-   * the app shows a blocking screen and the server refuses money operations.
+   * Set while the operator requires the user to contact support: the app shows a
+   * blocking screen, the bot answers with a support link, the server refuses actions.
    */
-  contactLock: { withdrawalId: number; amountRub: number } | null;
+  contactLock: { since: number } | null;
   /** Bot username without "@", for check links and the "@bot 10" hint. */
   botUsername: string;
   /** Profile numbers. An exchange is a completed USDT → RUB withdrawal. */
@@ -64,19 +66,29 @@ export interface WithdrawalDto {
   /** "+7 912 345-67-89 · Сбербанк" or "МИР •• 9010". */
   destination: string;
   createdAt: number;
-  sentAt: number | null;
-  confirmDeadline: number | null;
+  /** When the executor entered the deal: reminders and the answer window count from here. */
+  enteredAt: number | null;
+  /** What the user can press right now (computed on the server clock). */
+  actions: UserDealAction[];
+  /** Latest answer of the user. */
+  userDecision: 'received' | 'not_received' | 'other_amount' | null;
+  reportedRub: number | null;
+  /** Rubles the deal was finally settled for (after a correction it differs from amountRub). */
+  finalRub: number | null;
+  debitedMicro: number | null;
+  refundedMicro: number | null;
   finishedAt: number | null;
-  confirmedBy: 'user' | 'auto' | 'admin' | null;
-  rejectReason: string | null;
+  resolution: DealResolution | null;
   serverNow: number;
 }
 
 export type NotificationType =
-  | 'confirm_receipt'
-  | 'contact_support'
-  | 'withdrawal_completed'
-  | 'withdrawal_rejected'
+  | 'deal_reminder'
+  | 'deal_completed'
+  | 'deal_cancelled'
+  | 'deal_corrected'
+  | 'support_lock'
+  | 'obligation_repaid'
   | 'transfer_received'
   | 'check_claimed'
   | 'order_paid'
@@ -96,6 +108,16 @@ export interface NotificationDto {
   order?: ServiceOrderDto | null;
   /** deposit_credited: the deposit that just landed on the balance. */
   deposit?: DepositDto | null;
+  /** obligation_repaid: what was held back and why. */
+  deduction?: DeductionDto | null;
+  createdAt: number;
+}
+
+/** A hold of USDT the user learns about only when it happens. */
+export interface DeductionDto {
+  id: number;
+  amountMicro: number;
+  reason: string;
   createdAt: number;
 }
 
@@ -221,7 +243,8 @@ export type HistoryItem =
   | { type: 'order'; at: number; order: ServiceOrderDto }
   | { type: 'transfer'; at: number; transfer: TransferDto }
   | { type: 'check'; at: number; check: CheckDto }
-  | { type: 'deposit'; at: number; deposit: DepositDto };
+  | { type: 'deposit'; at: number; deposit: DepositDto }
+  | { type: 'deduction'; at: number; deduction: DeductionDto };
 
 // ---------- Admin ----------
 
@@ -237,6 +260,9 @@ export interface AdminUserDto {
   lastSeenAt: number;
   blocked: boolean;
   missedConfirmations: number;
+  supportLockedAt: number | null;
+  botBlockedAt: number | null;
+  obligationsLeftMicro: number;
   availableMicro: number;
   frozenMicro: number;
   depositAddresses: { chain: string; address: string; createdAt: number }[];
@@ -261,52 +287,204 @@ export interface WithdrawalEventDto {
   data: Record<string, unknown> | null;
 }
 
+export interface AdminDealUser {
+  id: number;
+  username: string | null;
+  firstName: string;
+  telegramId: number;
+  supportLocked: boolean;
+  botBlocked: boolean;
+}
+
 export interface AdminWithdrawalListItem {
   id: number;
   status: WithdrawalStatus;
+  section: BoardSection | null;
   method: PayoutMethod;
   amountRub: number;
   amountMicro: number;
   destination: string;
+  /** Phone or card number as the platform needs it: what to disable after "entered". */
+  requisite: string;
   /** NSPK bank id for SBP payouts, to show the bank logo. */
   bankId: string | null;
+  bankName: string | null;
   createdAt: number;
-  confirmDeadline: number | null;
-  user: { id: number; username: string | null; firstName: string };
+  takenAt: number | null;
+  enteredAt: number | null;
+  requisiteOffAt: number | null;
+  remindersSent: number;
+  nextReminderAt: number | null;
+  /** When the deal turns "inactive" if the user stays silent. */
+  inactiveAt: number | null;
+  /** When the external platform drops the deal (15 min after the executor entered). */
+  platformDeadline: number | null;
+  userDecision: 'received' | 'not_received' | 'other_amount' | null;
+  userDecidedAt: number | null;
+  reportedRub: number | null;
+  externalId: string | null;
+  resolution: DealResolution | null;
+  finalRub: number | null;
+  finishedAt: number | null;
+  user: AdminDealUser;
+}
+
+export interface AdminReminderDto {
+  n: number;
+  at: number;
+  delivered: boolean;
+  error: string | null;
 }
 
 export interface AdminWithdrawalDto extends AdminWithdrawalListItem {
   phone: string | null;
-  bankId: string | null;
-  bankName: string | null;
   cardNumber: string | null;
   cardBrand: string | null;
   rate: number;
   /** Rapira price the applied rate was derived from. */
   exchangeRate: number | null;
   balanceBeforeMicro: number;
-  sentAt: number | null;
-  finishedAt: number | null;
-  confirmedBy: 'user' | 'auto' | 'admin' | null;
-  rejectReason: string | null;
-  contactRequestedAt: number | null;
+  debitedMicro: number | null;
+  refundedMicro: number | null;
+  userConfirmedAt: number | null;
+  inactiveSince: number | null;
+  /** For a correction: what accepting it would do, using the user's current balance. */
+  correction: {
+    reportedRub: number;
+    correctedMicro: number;
+    refundMicro: number;
+    extraMicro: number;
+    fromAvailableMicro: number;
+    shortageMicro: number;
+  } | null;
   clientIp: string | null;
   userAgent: string | null;
   platform: string | null;
-  events: WithdrawalEventDto[];
+  reminders: AdminReminderDto[];
+  events: AdminAuditItem[];
   userDetails: AdminUserDto;
   /** Other accounts that withdrew to the same phone or card. */
   sameDestinationUsers: { id: number; username: string | null; firstName: string; withdrawals: number }[];
   recentWithdrawals: AdminWithdrawalListItem[];
+  obligations: AdminObligationDto[];
   serverNow: number;
 }
 
-export interface AdminCounts {
-  pending: number;
+export interface AdminBoardDto {
+  items: AdminWithdrawalListItem[];
+  counts: Record<BoardSection, number>;
+  serverNow: number;
+}
+
+export interface ArchiveQuery {
+  q?: string;
+  status?: 'completed' | 'cancelled' | '';
+  resolution?: DealResolution | '';
+  method?: PayoutMethod | '';
+  from?: number;
+  to?: number;
+  offset?: number;
+}
+
+export interface AdminAuditItem {
+  id: number;
+  at: number;
+  actor: AuditActor;
+  type: AuditType;
+  label: string;
+  userId: number | null;
+  username: string | null;
+  firstName: string | null;
+  withdrawalId: number | null;
+  obligationId: number | null;
+  amountMicro: number | null;
+  amountRub: number | null;
+  data: Record<string, unknown> | null;
+}
+
+export interface JournalQuery {
+  types?: string;
+  userId?: number;
+  dealId?: number;
+  q?: string;
+  from?: number;
+  to?: number;
+  before?: number;
+}
+
+export type ObligationStatus = 'active' | 'repaid' | 'written_off';
+
+export interface AdminObligationDto {
+  id: number;
+  status: ObligationStatus;
+  amountMicro: number;
+  repaidMicro: number;
+  /** Shown to the user in the hold notification. */
+  publicReason: string;
+  /** Internal note, never shown to the user. */
+  comment: string | null;
+  withdrawalId: number | null;
+  createdAt: number;
+  repaidAt: number | null;
+  writtenOffAt: number | null;
+  writeOffComment: string | null;
+  user: { id: number; username: string | null; firstName: string; telegramId: number };
+  /** Every hold, with its date. */
+  repayments: { at: number; amountMicro: number }[];
+}
+
+export interface CreateObligationRequest {
+  userId: number;
+  amountUsdt: number;
+  publicReason?: string;
+  comment?: string;
+  withdrawalId?: number | null;
+}
+
+export interface AdminUserListItem {
+  id: number;
+  telegramId: number;
+  username: string | null;
+  firstName: string;
+  lastName: string | null;
+  createdAt: number;
+  lastSeenAt: number;
+  availableMicro: number;
+  frozenMicro: number;
+  supportLocked: boolean;
+  blocked: boolean;
+  activeDeals: number;
+  obligationsLeftMicro: number;
+}
+
+export interface AdminUserPageDto extends AdminUserDto {
+  deals: AdminWithdrawalListItem[];
+  obligations: AdminObligationDto[];
+}
+
+export interface BroadcastRequest {
+  text: string;
+  /** Base64 image (jpeg/png), optional. */
+  photoBase64?: string | null;
+  buttonText?: string | null;
+  buttonUrl?: string | null;
+}
+
+export interface AdminBroadcastDto {
+  id: number;
+  createdAt: number;
+  author: string;
+  text: string;
+  hasPhoto: boolean;
+  buttonText: string | null;
+  buttonUrl: string | null;
+  status: 'sending' | 'done' | 'failed';
+  total: number;
   sent: number;
-  disputed: number;
-  completed: number;
-  rejected: number;
+  failed: number;
+  blocked: number;
+  finishedAt: number | null;
+  errors: { userId: number; username: string | null; error: string }[];
 }
 
 export interface AdminOrderListItem {

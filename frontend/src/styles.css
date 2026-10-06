@@ -574,6 +574,7 @@ button.card:active { transform: scale(0.98); border-color: var(--border-strong);
 }
 .demo-switch button { padding: 6px 14px; border-radius: 16px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .demo-switch button.on { background: var(--accent); color: #fff; }
+.demo-switch button.warp { color: #ffd43b; white-space: nowrap; }
 .demo-pad { height: 40px; }
 
 .rate-title-row { display: flex; align-items: center; gap: 8px; }
@@ -858,3 +859,7 @@ button.card:active { transform: scale(0.98); border-color: var(--border-strong);
 .wd-status[class*='dep-'] .wd-status-icon { background: rgba(255, 255, 255, 0.08); }
 .link-btn { color: #9fb0ff; padding: 0; font-size: 13px; text-align: right; }
 .history-icon.dep { background: #26a17b; color: #fff; overflow: hidden; padding: 0; }
+
+/* ---------- Deal answers ---------- */
+.deal-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.btn.danger-text { color: #ff8d98; }

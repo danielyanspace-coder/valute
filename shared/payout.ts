@@ -1,54 +1,14 @@
 // Rules for ruble payouts (withdrawal to a Russian bank card or via SBP).
 // Shared by the Mini App (instant validation) and the backend (authoritative checks).
 
-export const MIN_PAYOUT_RUB = 500;
-export const PAYOUT_STEP_RUB = 100;
-/** How long the user has to confirm receipt after the admin marks the payment as sent. */
-export const CONFIRM_WINDOW_MS = 10 * 60 * 1000;
+export const MIN_PAYOUT_RUB = 1000;
+export const PAYOUT_STEP_RUB = 1000;
 export const USDT_MICRO = 1_000_000;
 
 export type PayoutMethod = 'sbp' | 'card';
 
-export type WithdrawalStatus =
-  | 'pending' // created, USDT frozen, waiting for the operator to pay
-  | 'sent' // operator paid, waiting for the user to confirm receipt
-  | 'disputed' // user says the money did not arrive
-  | 'completed' // receipt confirmed (user, auto or admin), USDT written off
-  | 'rejected'; // cancelled by the operator, USDT returned to the balance
-
-export type WithdrawalAction =
-  | 'mark_sent'
-  | 'confirm_user'
-  | 'confirm_auto'
-  | 'confirm_admin'
-  | 'dispute'
-  | 'reject';
-
-const TRANSITIONS: Record<WithdrawalAction, { from: WithdrawalStatus[]; to: WithdrawalStatus }> = {
-  // Re-sending after a dispute restarts the confirmation window.
-  mark_sent: { from: ['pending', 'disputed'], to: 'sent' },
-  confirm_user: { from: ['sent'], to: 'completed' },
-  confirm_auto: { from: ['sent'], to: 'completed' },
-  // The operator can close the deal even if the user reported a missing payment.
-  confirm_admin: { from: ['sent', 'disputed'], to: 'completed' },
-  dispute: { from: ['sent'], to: 'disputed' },
-  reject: { from: ['pending', 'disputed'], to: 'rejected' },
-};
-
-export function nextStatus(status: WithdrawalStatus, action: WithdrawalAction): WithdrawalStatus | null {
-  const t = TRANSITIONS[action];
-  return t.from.includes(status) ? t.to : null;
-}
-
-export const isFinal = (s: WithdrawalStatus) => s === 'completed' || s === 'rejected';
-
-export const STATUS_LABEL: Record<WithdrawalStatus, string> = {
-  pending: 'В обработке',
-  sent: 'Ждёт подтверждения',
-  disputed: 'Проверяем платёж',
-  completed: 'Выполнено',
-  rejected: 'Отклонено',
-};
+/** Deal statuses; the lifecycle itself lives in deals.ts. */
+export type { DealStatus as WithdrawalStatus } from './deals.js';
 
 // ---------- Phone (SBP) ----------
 

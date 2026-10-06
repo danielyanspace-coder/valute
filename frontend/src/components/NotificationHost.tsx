@@ -1,10 +1,10 @@
 import { useCallback, useState } from 'react';
 import type { NotificationDto } from '../../../shared/api';
 import { api } from '../lib/backend';
-import { hapticNotify } from '../lib/telegram';
+import { hapticNotify, openTelegramChat } from '../lib/telegram';
 import { usePolling } from '../lib/useInterval';
 import { shortUsdt } from '../../../shared/transfers';
-import { IconCheck, IconPlus } from './icons';
+import { IconAlert, IconCheck, IconPlus } from './icons';
 import { Sheet } from './Sheet';
 
 interface Props {
@@ -26,18 +26,19 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
     await api.markNotificationsSeen(items.map((n) => n.id)).catch(() => {});
     onAnything();
     // Show the most important one; the rest are reflected in balances and history.
-    const order = ['contact_support', 'confirm_receipt', 'order_clarify', 'withdrawal_rejected', 'order_rejected', 'order_paid', 'deposit_credited', 'transfer_received', 'check_claimed', 'withdrawal_completed'];
+    const order = [
+      'support_lock', 'deal_reminder', 'order_clarify', 'deal_cancelled', 'deal_corrected', 'obligation_repaid', 'order_rejected',
+      'order_paid', 'deposit_credited', 'transfer_received', 'check_claimed', 'deal_completed',
+    ];
     const top = [...items].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))[0];
-    hapticNotify(['withdrawal_completed', 'transfer_received', 'check_claimed', 'deposit_credited'].includes(top.type) ? 'success' : 'warning');
-    // contact_support: the blocking screen is driven by /api/me (refreshed above), nothing to show here.
-    if (top.type === 'contact_support') return;
+    hapticNotify(['deal_completed', 'transfer_received', 'check_claimed', 'deposit_credited'].includes(top.type) ? 'success' : 'warning');
+    // support_lock: the blocking screen is driven by /api/me (refreshed above), nothing to show here.
+    if (top.type === 'support_lock') return;
     // Service orders: open the order itself, it shows the status, the question or the reason.
     if (top.type.startsWith('order_') && top.order) return onOpenOrder(top.order.id);
-    if ((top.type === 'confirm_receipt' || top.type === 'withdrawal_rejected') && top.withdrawalId) {
-      onOpenWithdrawal(top.withdrawalId);
-    } else {
-      setModal(top);
-    }
+    // Deals: the deal screen shows the buttons and the outcome.
+    if (top.type.startsWith('deal_') && top.withdrawalId) return onOpenWithdrawal(top.withdrawalId);
+    setModal(top);
   }, [modal, onAnything, onOpenWithdrawal, onOpenOrder]);
 
   usePolling(poll, 5000);
@@ -75,6 +76,23 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
     );
   }
 
+  if (modal.type === 'obligation_repaid' && modal.deduction) {
+    const d = modal.deduction;
+    return (
+      <Sheet open onClose={close} title="">
+        <div className="modal-center">
+          <span className="modal-icon warn"><IconAlert size={26} /></span>
+          <b>Удержано {shortUsdt(d.amountMicro)} USDT</b>
+          <p className="muted">Причина: {d.reason}. Если вы не согласны с удержанием, свяжитесь с поддержкой.</p>
+          <div className="sheet-actions">
+            <button className="btn ghost" onClick={close}>Закрыть</button>
+            {supportUsername && <button className="btn primary" onClick={() => { openTelegramChat(supportUsername); close(); }}>Поддержка</button>}
+          </div>
+        </div>
+      </Sheet>
+    );
+  }
+
   if (modal.type === 'check_claimed' && modal.check) {
     const c = modal.check;
     const by = c.claimedBy ? (c.claimedBy.username ? `@${c.claimedBy.username}` : c.claimedBy.firstName) : 'получатель';
@@ -90,19 +108,5 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
     );
   }
 
-  return (
-    <Sheet open onClose={close} title="">
-      <div className="modal-center">
-        <span className="modal-icon ok"><IconCheck size={26} /></span>
-        <b>Вывод выполнен</b>
-        <p className="muted">Заявка{modal.withdrawalId ? ` #${modal.withdrawalId}` : ''} завершена, детали в истории.</p>
-        <div className="sheet-actions">
-          <button className="btn ghost" onClick={close}>Закрыть</button>
-          {modal.withdrawalId && (
-            <button className="btn primary" onClick={() => { onOpenWithdrawal(modal.withdrawalId!); close(); }}>Открыть</button>
-          )}
-        </div>
-      </div>
-    </Sheet>
-  );
+  return null;
 }

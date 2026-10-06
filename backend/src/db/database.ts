@@ -230,6 +230,118 @@ const MIGRATIONS: string[] = [
   ALTER TABLE deposit_addresses ADD COLUMN cursor_ts INTEGER;
   ALTER TABLE notifications ADD COLUMN deposit_id INTEGER;
   `,
+  // 6: manual withdrawal deals through an external platform, journal, shadow holds, broadcasts.
+  `
+  ALTER TABLE withdrawals ADD COLUMN taken_at INTEGER;
+  ALTER TABLE withdrawals ADD COLUMN entered_at INTEGER;
+  ALTER TABLE withdrawals ADD COLUMN requisite_off_at INTEGER;
+  ALTER TABLE withdrawals ADD COLUMN reminders_sent INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE withdrawals ADD COLUMN bot_message_id INTEGER;
+  ALTER TABLE withdrawals ADD COLUMN inactive_since INTEGER;
+  ALTER TABLE withdrawals ADD COLUMN user_decision TEXT;
+  ALTER TABLE withdrawals ADD COLUMN user_decided_at INTEGER;
+  ALTER TABLE withdrawals ADD COLUMN reported_rub INTEGER;
+  ALTER TABLE withdrawals ADD COLUMN user_confirmed_at INTEGER;
+  ALTER TABLE withdrawals ADD COLUMN final_rub INTEGER;
+  ALTER TABLE withdrawals ADD COLUMN debited_micro INTEGER;
+  ALTER TABLE withdrawals ADD COLUMN refunded_micro INTEGER;
+  ALTER TABLE withdrawals ADD COLUMN resolution TEXT;
+  ALTER TABLE withdrawals ADD COLUMN external_id TEXT;
+  CREATE INDEX withdrawals_external ON withdrawals(external_id);
+
+  -- Old lifecycle → new one. Old "sent" deals have had their window: they wait for the operator.
+  UPDATE withdrawals SET status = 'new' WHERE status = 'pending';
+  UPDATE withdrawals SET status = 'inactive', entered_at = sent_at, reminders_sent = 5, inactive_since = COALESCE(confirm_deadline, sent_at)
+    WHERE status = 'sent';
+  UPDATE withdrawals SET status = 'not_received', entered_at = sent_at, reminders_sent = 5, user_decision = 'not_received' WHERE status = 'disputed';
+  UPDATE withdrawals SET debited_micro = amount_micro, final_rub = amount_rub,
+    resolution = CASE WHEN confirmed_by = 'user' THEN 'closed' ELSE 'confirmed_admin' END WHERE status = 'completed';
+  UPDATE withdrawals SET status = 'cancelled', refunded_micro = amount_micro, resolution = 'cancelled' WHERE status = 'rejected';
+
+  ALTER TABLE users ADD COLUMN support_lock_at INTEGER;
+  ALTER TABLE users ADD COLUMN bot_blocked_at INTEGER;
+  UPDATE users SET support_lock_at = (
+    SELECT MAX(contact_requested_at) FROM withdrawals w
+    WHERE w.user_id = users.id AND w.contact_requested_at IS NOT NULL AND w.status NOT IN ('completed', 'cancelled'))
+  WHERE support_lock_at IS NULL;
+
+  UPDATE notifications SET seen_at = created_at
+    WHERE seen_at IS NULL AND type IN ('confirm_receipt', 'contact_support', 'withdrawal_completed', 'withdrawal_rejected');
+  ALTER TABLE notifications ADD COLUMN obligation_id INTEGER;
+  ALTER TABLE notifications ADD COLUMN amount_micro INTEGER;
+
+  CREATE TABLE audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    at INTEGER NOT NULL,
+    actor TEXT NOT NULL,
+    type TEXT NOT NULL,
+    user_id INTEGER,
+    withdrawal_id INTEGER,
+    obligation_id INTEGER,
+    amount_micro INTEGER,
+    amount_rub INTEGER,
+    data TEXT
+  );
+  CREATE INDEX audit_at ON audit_log(at);
+  CREATE INDEX audit_user ON audit_log(user_id, at);
+  CREATE INDEX audit_deal ON audit_log(withdrawal_id, at);
+  CREATE INDEX audit_type ON audit_log(type, at);
+  INSERT INTO audit_log (at, actor, type, user_id, withdrawal_id, data)
+    SELECT e.at, e.actor, CASE e.type
+        WHEN 'created' THEN 'deal_created' WHEN 'marked_sent' THEN 'deal_entered' WHEN 'confirmed' THEN 'admin_confirmed'
+        WHEN 'disputed' THEN 'user_not_received' WHEN 'rejected' THEN 'deal_cancelled' WHEN 'note' THEN 'note'
+        ELSE 'note' END,
+      w.user_id, e.withdrawal_id, e.data
+    FROM withdrawal_events e JOIN withdrawals w ON w.id = e.withdrawal_id ORDER BY e.id;
+
+  CREATE TABLE deal_reminders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    withdrawal_id INTEGER NOT NULL REFERENCES withdrawals(id),
+    n INTEGER NOT NULL,
+    at INTEGER NOT NULL,
+    delivered INTEGER NOT NULL,
+    error TEXT,
+    UNIQUE (withdrawal_id, n)
+  );
+
+  CREATE TABLE obligations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount_micro INTEGER NOT NULL CHECK (amount_micro > 0),
+    repaid_micro INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL CHECK (status IN ('active', 'repaid', 'written_off')),
+    public_reason TEXT NOT NULL,
+    comment TEXT,
+    withdrawal_id INTEGER REFERENCES withdrawals(id),
+    created_at INTEGER NOT NULL,
+    repaid_at INTEGER,
+    written_off_at INTEGER,
+    write_off_comment TEXT
+  );
+  CREATE INDEX obligations_user ON obligations(user_id, status);
+
+  CREATE TABLE broadcasts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at INTEGER NOT NULL,
+    author TEXT NOT NULL,
+    text TEXT NOT NULL,
+    photo BLOB,
+    photo_file_id TEXT,
+    button_text TEXT,
+    button_url TEXT,
+    status TEXT NOT NULL CHECK (status IN ('sending', 'done', 'failed')),
+    total INTEGER NOT NULL DEFAULT 0,
+    finished_at INTEGER
+  );
+  CREATE TABLE broadcast_deliveries (
+    broadcast_id INTEGER NOT NULL REFERENCES broadcasts(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    status TEXT NOT NULL CHECK (status IN ('queued', 'sent', 'failed', 'blocked')),
+    error TEXT,
+    at INTEGER,
+    PRIMARY KEY (broadcast_id, user_id)
+  );
+  `,
 ];
 
 export type Db = DatabaseSync;

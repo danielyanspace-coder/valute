@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { DepositDto, HistoryItem, MeDto } from '../../shared/api';
 import { USDT_MICRO } from '../../shared/payout';
 import { Actions, type ActionId } from './components/Actions';
@@ -51,6 +51,14 @@ export function App() {
   const [openOrder, setOpenOrder] = useState<number | null>(null);
   const [openDeposit, setOpenDeposit] = useState<DepositDto | null>(null);
   const [openWithdrawal, setOpenWithdrawal] = useState<number | null>(null);
+  // The bot's "other amount" button opens the Mini App with ?deal=<id>.
+  const [otherAmountDeal, setOtherAmountDeal] = useState<number | null>(() => {
+    const id = Number(new URLSearchParams(window.location.search).get('deal'));
+    return Number.isInteger(id) && id > 0 ? id : null;
+  });
+  useEffect(() => {
+    if (otherAmountDeal) setOpenWithdrawal(otherAmountDeal);
+  }, [otherAmountDeal]);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [qrResult, setQrResult] = useState<ParsedQr | null>(null);
   const [soon, setSoon] = useState<string | null>(null);
@@ -105,7 +113,7 @@ export function App() {
     setOpenWithdrawal(id);
   }, []);
 
-  const awaiting = history.flatMap((h) => (h.type === 'withdrawal' && h.withdrawal.status === 'sent' ? [h.withdrawal] : []));
+  const awaiting = history.flatMap((h) => (h.type === 'withdrawal' && h.withdrawal.actions.includes('received') ? [h.withdrawal] : []));
   const tgUser = tg?.initDataUnsafe.user;
   const headerUser = me
     ? { firstName: me.user.firstName, lastName: me.user.lastName, username: me.user.username, photoUrl: me.user.photoUrl }
@@ -189,13 +197,13 @@ export function App() {
       <TransferFlow open={transferOpen} onClose={() => setTransferOpen(false)} me={me} onChanged={refreshAccount} />
       <WithdrawalSheet
         id={openWithdrawal}
-        onClose={() => setOpenWithdrawal(null)}
+        onClose={() => { setOpenWithdrawal(null); setOtherAmountDeal(null); }}
         onChanged={refreshAccount}
         supportUsername={support}
-        usernameHidden={!!me && !me.user.username}
+        startWithOtherAmount={otherAmountDeal !== null && otherAmountDeal === openWithdrawal}
       />
       <NotificationHost supportUsername={support} onOpenWithdrawal={openW} onAnything={refreshAccount} onOpenOrder={setOpenOrder} />
-      {me?.contactLock && <ContactLock lock={me.contactLock} supportUsername={support} />}
+      {me?.contactLock && <ContactLock supportUsername={support} />}
       {scannerOpen && <QrScannerOverlay onResult={handleScanned} onClose={() => setScannerOpen(false)} />}
       <QrResultSheet result={qrResult} qrPayRate={rate?.qrPayRate ?? null} onClose={() => setQrResult(null)} onRescan={startScan} />
       <Sheet open={!!soon} onClose={() => setSoon(null)} title={soon ?? ''}>

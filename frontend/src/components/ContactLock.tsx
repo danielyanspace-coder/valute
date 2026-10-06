@@ -1,22 +1,17 @@
-import { fmtRub0 } from '../lib/format';
 import { openTelegramChat } from '../lib/telegram';
 import { IconChat } from './icons';
 
 /**
- * Blocking screen shown while the operator waits for the user to get in touch.
- * No close button on purpose: it disappears only when the deal is completed or rejected.
+ * Blocking screen while the operator requires the user to contact support.
+ * No close button on purpose: it disappears when the operator lifts the lock.
  */
-export function ContactLock({ lock, supportUsername }: { lock: { withdrawalId: number; amountRub: number }; supportUsername: string }) {
+export function ContactLock({ supportUsername }: { supportUsername: string }) {
   return (
     <div className="lock-screen" role="alertdialog" aria-modal="true" aria-labelledby="lock-title">
       <div className="lock-card">
         <span className="modal-icon warn"><IconChat size={28} /></span>
         <b id="lock-title">Свяжитесь с поддержкой</b>
-        <p>
-          По заявке #{lock.withdrawalId} на {fmtRub0(lock.amountRub)} нам нужно уточнить детали. Ваш username в Telegram
-          скрыт, поэтому мы не можем написать первыми.
-        </p>
-        <p className="lock-note">Кошелёк будет доступен, когда поддержка завершит заявку.</p>
+        <p>Нам нужно уточнить детали. Операции в кошельке приостановлены до связи с поддержкой.</p>
         {supportUsername ? (
           <button className="btn primary block" onClick={() => openTelegramChat(supportUsername)}>Написать в поддержку</button>
         ) : (

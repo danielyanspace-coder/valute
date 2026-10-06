@@ -10,6 +10,7 @@ import type { TransferService } from '../transfers/transferService.js';
 import type { Ledger } from '../ledger/ledger.js';
 import type { NotificationService } from '../notifications/notificationService.js';
 import type { RateService } from '../rates/rateService.js';
+import type { ObligationService } from '../obligations/obligationService.js';
 import type { WithdrawalService } from '../withdrawals/withdrawalService.js';
 
 export interface UserRouteDeps {
@@ -29,10 +30,19 @@ export interface UserRouteDeps {
   orders: OrderService;
   fineLookup: FineLookup;
   servicesDiscountPercent: number;
+  obligations: ObligationService;
 }
 
 /** Routes for the Mini App. Registered inside a scope that already runs Telegram auth. */
 export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
+  // "Contact support" lock: every action is refused; reading (and dismissing notifications) still works.
+  app.addHook('preHandler', async (req, reply) => {
+    if (req.method === 'GET' || req.url.startsWith('/api/notifications')) return;
+    if (req.user && deps.withdrawals.contactLock(req.user.id)) {
+      return reply.code(423).send({ error: 'locked', message: 'Действие недоступно. Свяжитесь с поддержкой' });
+    }
+  });
+
   app.get('/api/me', async (req): Promise<MeDto> => {
     const u = req.user!;
     return {
@@ -72,12 +82,16 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     return deps.withdrawals.toUserDto(w);
   });
 
-  app.post<{ Params: { id: string } }>('/api/withdrawals/:id/confirm', async (req) =>
-    deps.withdrawals.toUserDto(deps.withdrawals.confirmByUser(req.user!.id, Number(req.params.id))),
+  app.post<{ Params: { id: string } }>('/api/withdrawals/:id/received', async (req) =>
+    deps.withdrawals.toUserDto(deps.withdrawals.userReceived(req.user!.id, Number(req.params.id))),
   );
 
-  app.post<{ Params: { id: string } }>('/api/withdrawals/:id/dispute', async (req) =>
-    deps.withdrawals.toUserDto(deps.withdrawals.disputeByUser(req.user!.id, Number(req.params.id))),
+  app.post<{ Params: { id: string } }>('/api/withdrawals/:id/not-received', async (req) =>
+    deps.withdrawals.toUserDto(deps.withdrawals.userNotReceived(req.user!.id, Number(req.params.id))),
+  );
+
+  app.post<{ Params: { id: string }; Body: { amountRub?: number } }>('/api/withdrawals/:id/other-amount', async (req) =>
+    deps.withdrawals.toUserDto(deps.withdrawals.userOtherAmount(req.user!.id, Number(req.params.id), Number(req.body?.amountRub))),
   );
 
   app.get('/api/notifications', async (req) => {
@@ -95,6 +109,9 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
         check: c ? deps.transfers.checkDto(c) : null,
         order: o ? deps.orders.toUserDto(o) : null,
         deposit: d && deps.deposits ? deps.deposits.toUserDto(d) : null,
+        deduction: n.type === 'obligation_repaid' && n.obligationId
+          ? { id: n.id, amountMicro: n.amountMicro ?? 0, reason: deps.obligations.get(n.obligationId).publicReason, createdAt: n.createdAt }
+          : null,
         createdAt: n.createdAt,
       };
     });
@@ -126,7 +143,8 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
       const deposit = deps.deposits!.toUserDto(d);
       return { type: 'deposit', at: deposit.createdAt, deposit };
     });
-    return { items: [...deps.transfers.history(uid), ...orders, ...deposits].sort((a, b) => b.at - a.at).slice(0, 100) };
+    const deductions = deps.obligations.deductionsForUser(uid).map((deduction): HistoryItem => ({ type: 'deduction', at: deduction.createdAt, deduction }));
+    return { items: [...deps.transfers.history(uid), ...orders, ...deposits, ...deductions].sort((a, b) => b.at - a.at).slice(0, 100) };
   });
 
   // ---------- Services: fines, parking, Steam ----------
