@@ -149,6 +149,17 @@ export class WithdrawalService {
     return u?.support_lock_at ? { since: u.support_lock_at } : null;
   }
 
+  /**
+   * The user let the time to answer run out: the wallet stays paused until they say
+   * whether the money arrived. The operator closing or cancelling the deal also lifts it.
+   */
+  answerLock(userId: number): { withdrawalId: number; amountRub: number } | null {
+    const w = this.db
+      .prepare(`SELECT id, amount_rub FROM withdrawals WHERE user_id = ? AND status = 'inactive' ORDER BY id LIMIT 1`)
+      .get(userId) as { id: number; amount_rub: number } | undefined;
+    return w ? { withdrawalId: w.id, amountRub: w.amount_rub } : null;
+  }
+
   assertNotLocked(userId: number): void {
     if (this.contactLock(userId)) throw new AppError(423, 'locked', LOCK_MESSAGE);
   }
@@ -262,7 +273,7 @@ export class WithdrawalService {
       this.log(id, w.user_id, 'user', 'user_not_received', { amountRub: w.amount_rub, data: { from: w.status, responseMs: this.responseMs(w) } });
       return this.row(id)!;
     });
-    this.clearBotButtons(row, 'Мы проверим платёж и свяжемся с вами. Если деньги придут, подтвердите получение в кошельке.');
+    this.clearBotButtons(row, `Заявка №${row.id}: вы сообщили, что оплата не поступила. С вами свяжется поддержка. Если деньги придут, подтвердите получение в кошельке.`);
     return row;
   }
 
@@ -478,7 +489,7 @@ export class WithdrawalService {
           this.log(w.id, w.user_id, 'system', 'deal_inactive', { data: { remindersSent: w.reminders_sent } });
           return true;
         });
-        if (moved) this.clearBotButtons(this.row(w.id)!, 'Время на подтверждение вышло. Сделка на рассмотрении администратора. Если деньги пришли, подтвердите получение в кошельке.');
+        if (moved) await this.sendInactive(this.row(w.id)!);
         continue;
       }
       const due = remindersDue(w.entered_at!, now);
@@ -489,6 +500,25 @@ export class WithdrawalService {
         .run(due, w.id, w.reminders_sent);
       if (Number(claimed.changes) !== 1) continue;
       await this.sendReminder({ ...w, reminders_sent: due }, due);
+    }
+  }
+
+  /** Time is up: the wallet is paused until the user answers, the answer buttons stay. */
+  private async sendInactive(w: WithdrawalRow): Promise<void> {
+    const user = this.users.get(w.user_id);
+    if (!user || !this.messenger || user.support_lock_at) return;
+    const text =
+      `Время на подтверждение по заявке №${w.id} вышло.\n\n` +
+      `Кошелёк приостановлен, пока вы не ответите: поступила ли оплата ${rub(w.amount_rub)}? Сделка на рассмотрении администратора.`;
+    const buttons = this.dealButtons(w, 'Оплата поступила');
+    try {
+      if (w.bot_message_id) await this.messenger.editText(user.telegram_id, w.bot_message_id, text, buttons);
+      else {
+        const res = await this.messenger.send(user.telegram_id, text, { buttons });
+        if (res.ok) this.db.prepare('UPDATE withdrawals SET bot_message_id = ? WHERE id = ?').run(res.messageId, w.id);
+      }
+    } catch {
+      // the Mini App shows the same lock screen
     }
   }
 

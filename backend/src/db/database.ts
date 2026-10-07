@@ -404,6 +404,31 @@ const MIGRATIONS: string[] = [
   CREATE INDEX deposits_status ON deposits(status, seen_at);
   CREATE INDEX deposits_sender ON deposits(from_address);
   `,
+  // 8: USDT TRC-20 withdrawals, sent by hand by the operator.
+  `
+  CREATE TABLE usdt_payouts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    request_id TEXT NOT NULL,
+    address TEXT NOT NULL,
+    amount_micro INTEGER NOT NULL,
+    fee_micro INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('new', 'sent', 'rejected')),
+    aml_decision TEXT,
+    aml_detail TEXT,
+    tx_id TEXT UNIQUE,
+    reject_reason TEXT,
+    admin_note TEXT,
+    balance_before_micro INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    finished_at INTEGER,
+    client_ip TEXT,
+    UNIQUE (user_id, request_id)
+  );
+  CREATE INDEX usdt_payouts_status ON usdt_payouts(status, created_at);
+  CREATE INDEX usdt_payouts_user ON usdt_payouts(user_id, created_at);
+  ALTER TABLE notifications ADD COLUMN usdt_payout_id INTEGER;
+  `,
 ];
 
 export type Db = DatabaseSync;

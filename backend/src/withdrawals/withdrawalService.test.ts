@@ -221,8 +221,10 @@ describe('user answers', () => {
     now += INACTIVE_AFTER_MS;
     await svc.tick();
     expect(svc.row(w.id)!.status).toBe('inactive');
+    expect(svc.answerLock(user.id)).toEqual({ withdrawalId: w.id, amountRub: w.amount_rub });
     svc.userReceived(user.id, w.id);
     expect(svc.row(w.id)!.status).toBe('user_confirmed');
+    expect(svc.answerLock(user.id)).toBeNull();
   });
 
   it('cannot touch someone else\'s deal', () => {

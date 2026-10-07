@@ -17,6 +17,7 @@ import { UserRepo } from './users/userRepo.js';
 import { DepositService, type DepositServiceOptions } from './deposits/depositService.js';
 import { USDT_MICRO } from '../../shared/payout.js';
 import { TronGridClient } from './deposits/tronClient.js';
+import { UsdtPayoutService } from './usdtPayouts/usdtPayoutService.js';
 import { WithdrawalService } from './withdrawals/withdrawalService.js';
 import { TransferService } from './transfers/transferService.js';
 import { TelegramApi, WalletBot } from './bot/bot.js';
@@ -62,7 +63,12 @@ const depositOpts: DepositServiceOptions = {
   batchSize: config.depositBatch,
   audit,
 };
-const deposits = new DepositService(db, new TronGridClient(config.tronGridUrl, config.tronGridApiKey), aml, ledger, users, notifications, depositOpts);
+const tronGrid = new TronGridClient(config.tronGridUrl, config.tronGridApiKey);
+const deposits = new DepositService(db, tronGrid, aml, ledger, users, notifications, depositOpts);
+const usdtPayouts = new UsdtPayoutService(db, ledger, users, notifications, aml, tronGrid, {
+  feeMicro: Math.round(config.usdtWithdrawFeeUsdt * USDT_MICRO),
+  minMicro: Math.round(config.usdtWithdrawMinUsdt * USDT_MICRO),
+}, audit);
 
 const app = buildApp({
   rates,
@@ -82,6 +88,7 @@ const app = buildApp({
   supportUsername: config.supportUsername,
   depositMinUsdt: config.depositMinUsdt,
   deposits,
+  usdtPayouts,
   audit,
   obligations,
   broadcasts,

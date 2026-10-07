@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { LogoX } from '../components/icons';
 import { ApiError, IS_DEMO, type AdminApi } from '../lib/api';
 import { adminApi } from '../lib/backend';
+import { usePolling } from '../lib/useInterval';
 import { ArchivePanel } from './ArchivePanel';
 import { BroadcastsPanel } from './BroadcastsPanel';
 import { DealDrawer } from './DealDetail';
@@ -10,6 +11,7 @@ import { DepositsPanel } from './DepositsPanel';
 import { JournalPanel } from './JournalPanel';
 import { ObligationsPanel } from './ObligationsPanel';
 import { OrdersPanel } from './OrdersPanel';
+import { UsdtPayoutsPanel } from './UsdtPayoutsPanel';
 import { UsersPanel } from './UsersPanel';
 import './admin.css';
 
@@ -36,10 +38,11 @@ export function AdminApp() {
   return <Shell api={adminApi(token)} onLogout={IS_DEMO ? undefined : () => { writeToken(''); setToken(''); }} />;
 }
 
-type Section = 'deals' | 'archive' | 'users' | 'obligations' | 'journal' | 'broadcasts' | 'orders' | 'deposits';
+type Section = 'deals' | 'usdt' | 'archive' | 'users' | 'obligations' | 'journal' | 'broadcasts' | 'orders' | 'deposits';
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'deals', label: 'Сделки' },
+  { id: 'usdt', label: 'Вывод USDT' },
   { id: 'archive', label: 'Архив' },
   { id: 'users', label: 'Пользователи' },
   { id: 'obligations', label: 'Теневые заморозки' },
@@ -55,6 +58,12 @@ function Shell({ api, onLogout }: { api: AdminApi; onLogout?: () => void }) {
   const [userId, setUserId] = useState<number | null>(null);
   const [journalUser, setJournalUser] = useState<number | null>(null);
   const [deal, setDeal] = useState<number | null>(null);
+  // New USDT withdrawals wait for a manual transfer: keep the count in the menu.
+  const [usdtNew, setUsdtNew] = useState(0);
+  const pollUsdt = useCallback(() => {
+    api.usdtPayouts('new').then((r) => setUsdtNew(r.counts.new), () => {});
+  }, [api]);
+  usePolling(pollUsdt, 10_000);
 
   const openUser = (id: number | null) => {
     setDeal(null);
@@ -77,6 +86,7 @@ function Shell({ api, onLogout }: { api: AdminApi; onLogout?: () => void }) {
         {SECTIONS.map((s) => (
           <button key={s.id} className={section === s.id ? 'active' : ''} onClick={() => { setSection(s.id); if (s.id === 'users') setUserId(null); }}>
             {s.label}
+            {s.id === 'usdt' && usdtNew > 0 && <span className="ab-nav-count">{usdtNew}</span>}
           </button>
         ))}
       </nav>
@@ -88,6 +98,7 @@ function Shell({ api, onLogout }: { api: AdminApi; onLogout?: () => void }) {
       {section === 'journal' && <JournalPanel api={api} userId={journalUser} onClearUser={() => setJournalUser(null)} onOpenDeal={setDeal} onOpenUser={openUser} />}
       {section === 'broadcasts' && <BroadcastsPanel api={api} />}
       {section === 'orders' && <OrdersPanel api={api} top={null} />}
+      {section === 'usdt' && <UsdtPayoutsPanel api={api} onOpenUser={openUser} />}
       {section === 'deposits' && <DepositsPanel api={api} top={null} />}
 
       {deal !== null && <DealDrawer api={api} id={deal} onClose={() => setDeal(null)} onChanged={() => {}} onOpenUser={openUser} onOpenDeal={setDeal} />}

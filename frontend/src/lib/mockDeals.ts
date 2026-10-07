@@ -314,8 +314,15 @@ export function createDealEngine(ctx: DealEngineCtx) {
     const u = user(userId);
     return u.supportLockedAt ? { since: u.supportLockedAt } : null;
   };
-  const assertNotLocked = (userId: number) => {
+  const answerLock = (userId: number) => {
+    const d = deals.find((x) => x.userId === userId && x.status === 'inactive');
+    return d ? { withdrawalId: d.id, amountRub: d.amountRub } : null;
+  };
+  /** Same rules as the server: a support lock blocks everything, an expired deal everything but the answer. */
+  const assertNotLocked = (userId: number, answering = false) => {
     if (contactLock(userId)) fail(423, 'Действие недоступно. Свяжитесь с поддержкой');
+    const lock = answering ? null : answerLock(userId);
+    if (lock) fail(423, `Сначала ответьте по заявке №${lock.withdrawalId}: поступила ли оплата`);
   };
 
   const create = (u: DemoUser, req: CreateWithdrawalRequest): Deal => {
@@ -362,7 +369,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
   };
 
   const guard = (userId: number, id: number, action: UserDealAction) => {
-    assertNotLocked(userId);
+    assertNotLocked(userId, true);
     const d = deal(id);
     if (d.userId !== userId) fail(404, 'Заявка не найдена');
     if (!userCan({ status: d.status, enteredAt: d.enteredAt }, action, now())) {
@@ -628,6 +635,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
     userOtherAmount,
     contactLock,
     assertNotLocked,
+    answerLock,
     credit,
     settle,
     log,

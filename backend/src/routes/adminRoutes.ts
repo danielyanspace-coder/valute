@@ -11,6 +11,7 @@ import type { UserRepo } from '../users/userRepo.js';
 import type { OrderService } from '../orders/orderService.js';
 import type { OrderStatus } from '../../../shared/services.js';
 import type { DepositService } from '../deposits/depositService.js';
+import type { UsdtPayoutService } from '../usdtPayouts/usdtPayoutService.js';
 import { AppError, type WithdrawalService } from '../withdrawals/withdrawalService.js';
 
 const CHAINS: Chain[] = ['TRON', 'BSC', 'ETH', 'TON'];
@@ -24,6 +25,7 @@ export interface AdminRouteDeps {
   aml: AmlService;
   orders: OrderService;
   deposits: DepositService;
+  usdtPayouts: UsdtPayoutService;
   audit: AuditLog;
   obligations: ObligationService;
   broadcasts: BroadcastService;
@@ -172,6 +174,18 @@ export function adminRoutes(app: FastifyInstance, deps: AdminRouteDeps) {
   );
   app.post<{ Params: { id: string }; Body: { reason?: string } }>('/api/admin/deposits/:id/reject', async (req) =>
     deps.deposits.rejectByAdmin(Number(req.params.id), String(req.body?.reason ?? '')),
+  );
+
+  // USDT TRC-20 withdrawals sent by hand.
+  app.get<{ Querystring: { status?: string } }>('/api/admin/usdt-withdrawals', async (req) => {
+    const s = (['new', 'sent', 'rejected', 'all'] as const).find((x) => x === req.query.status) ?? 'new';
+    return { items: deps.usdtPayouts.adminList(s), counts: deps.usdtPayouts.counts() };
+  });
+  app.post<{ Params: { id: string }; Body: { txId?: string; force?: boolean; note?: string } }>('/api/admin/usdt-withdrawals/:id/sent', async (req) =>
+    deps.usdtPayouts.markSent(Number(req.params.id), String(req.body?.txId ?? ''), req.body?.force === true, String(req.body?.note ?? '')),
+  );
+  app.post<{ Params: { id: string }; Body: { reason?: string } }>('/api/admin/usdt-withdrawals/:id/reject', async (req) =>
+    deps.usdtPayouts.reject(Number(req.params.id), String(req.body?.reason ?? '')),
   );
 
   // Deposit addresses (TronLink accounts) and the operator's own wallets.

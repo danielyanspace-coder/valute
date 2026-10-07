@@ -29,6 +29,10 @@ export const AUDIT_TYPES = {
   user_blocked: 'Вывод запрещён',
   user_unblocked: 'Вывод разрешён',
   deposit_credited: 'Пополнение зачислено',
+  deposit_address_added: 'Добавлен адрес пополнения',
+  usdt_payout_created: 'Заявка на вывод USDT',
+  usdt_payout_sent: 'Вывод USDT отправлен',
+  usdt_payout_rejected: 'Вывод USDT отклонён',
   broadcast_sent: 'Рассылка',
 } as const;
 
@@ -39,7 +43,7 @@ export const AUDIT_GROUPS: { id: string; label: string; types: AuditType[] }[] =
   { id: 'deal', label: 'Сделки', types: ['deal_created', 'deal_taken', 'deal_entered', 'requisite_off', 'deal_inactive', 'deal_closed', 'deal_reopened', 'external_id_set', 'note'] },
   { id: 'user', label: 'Действия пользователя', types: ['user_received', 'user_not_received', 'user_other_amount'] },
   { id: 'notify', label: 'Уведомления', types: ['reminder_sent', 'broadcast_sent'] },
-  { id: 'money', label: 'Деньги', types: ['admin_confirmed', 'correction_accepted', 'original_accepted', 'deal_cancelled', 'manual_adjustment', 'deposit_credited'] },
+  { id: 'money', label: 'Деньги', types: ['admin_confirmed', 'correction_accepted', 'original_accepted', 'deal_cancelled', 'manual_adjustment', 'deposit_credited', 'usdt_payout_created', 'usdt_payout_sent', 'usdt_payout_rejected'] },
   { id: 'shadow', label: 'Теневые заморозки', types: ['obligation_created', 'obligation_repaid', 'obligation_written_off'] },
-  { id: 'access', label: 'Доступ', types: ['support_lock', 'support_unlock', 'user_blocked', 'user_unblocked'] },
+  { id: 'access', label: 'Доступ', types: ['support_lock', 'support_unlock', 'user_blocked', 'user_unblocked', 'deposit_address_added'] },
 ];

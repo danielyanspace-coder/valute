@@ -6,6 +6,7 @@ import { BalanceCard } from './components/BalanceCard';
 import { BottomNav, type Tab } from './components/BottomNav';
 import { ConfirmBanner } from './components/ConfirmBanner';
 import { ContactLock } from './components/ContactLock';
+import { DealLock } from './components/DealLock';
 import { CryptoList } from './components/CryptoList';
 import { Header } from './components/Header';
 import { HistoryScreen } from './components/HistoryScreen';
@@ -19,6 +20,7 @@ import { RateCard } from './components/RateCard';
 import { RateSheet } from './components/RateSheet';
 import { Sheet } from './components/Sheet';
 import { WithdrawalSheet } from './components/withdraw/WithdrawalSheet';
+import { UsdtPayoutSheet } from './components/withdraw/UsdtPayoutSheet';
 import { WithdrawFlow } from './components/withdraw/WithdrawFlow';
 import { TransferFlow } from './components/transfer/TransferFlow';
 import { DepositSheet } from './components/deposit/DepositSheet';
@@ -53,6 +55,7 @@ export function App() {
   const [openOrder, setOpenOrder] = useState<number | null>(null);
   const [openDeposit, setOpenDeposit] = useState<DepositDto | null>(null);
   const [openWithdrawal, setOpenWithdrawal] = useState<number | null>(null);
+  const [openUsdtPayout, setOpenUsdtPayout] = useState<number | null>(null);
   // The bot's "other amount" button opens the Mini App with ?deal=<id>.
   const [otherAmountDeal, setOtherAmountDeal] = useState<number | null>(() => {
     const id = Number(new URLSearchParams(window.location.search).get('deal'));
@@ -114,6 +117,10 @@ export function App() {
     setWithdrawOpen(false);
     setOpenWithdrawal(id);
   }, []);
+  const openU = useCallback((id: number) => {
+    setWithdrawOpen(false);
+    setOpenUsdtPayout(id);
+  }, []);
 
   const awaiting = history.flatMap((h) => (h.type === 'withdrawal' && h.withdrawal.actions.includes('received') ? [h.withdrawal] : []));
   const tgUser = tg?.initDataUnsafe.user;
@@ -165,7 +172,7 @@ export function App() {
         {tab === 'profile' && <ProfileScreen me={me} onUnavailableSupport={() => setSoon('Поддержка')} />}
 
         {tab === 'history' && (
-          <HistoryScreen items={history} loading={historyLoading} onOpenWithdrawal={setOpenWithdrawal} onOpenChecks={() => setTransferOpen(true)} onOpenOrder={setOpenOrder} onOpenDeposit={setOpenDeposit} />
+          <HistoryScreen items={history} loading={historyLoading} onOpenWithdrawal={setOpenWithdrawal} onOpenChecks={() => setTransferOpen(true)} onOpenOrder={setOpenOrder} onOpenDeposit={setOpenDeposit} onOpenUsdtPayout={openU} />
         )}
       </main>
 
@@ -187,6 +194,7 @@ export function App() {
         rate={rate}
         onCreated={refreshAccount}
         onOpenWithdrawal={openW}
+        onOpenUsdtPayout={openU}
       />
       <DepositSheet open={depositOpen} onClose={() => setDepositOpen(false)} />
       <ServiceFlow
@@ -206,8 +214,12 @@ export function App() {
         supportUsername={support}
         startWithOtherAmount={otherAmountDeal !== null && otherAmountDeal === openWithdrawal}
       />
-      <NotificationHost supportUsername={support} onOpenWithdrawal={openW} onAnything={refreshAccount} onOpenOrder={setOpenOrder} />
+      <NotificationHost supportUsername={support} onOpenWithdrawal={openW} onAnything={refreshAccount} onOpenOrder={setOpenOrder} onOpenUsdtPayout={openU} />
+      <UsdtPayoutSheet id={openUsdtPayout} onClose={() => setOpenUsdtPayout(null)} supportUsername={support} />
       {me?.contactLock && <ContactLock supportUsername={support} />}
+      {!me?.contactLock && me?.answerLock && openWithdrawal !== me.answerLock.withdrawalId && (
+        <DealLock lock={me.answerLock} onAnswer={() => openW(me.answerLock!.withdrawalId)} />
+      )}
       {scannerOpen && <QrScannerOverlay onResult={handleScanned} onClose={() => setScannerOpen(false)} />}
       <QrResultSheet result={qrResult} qrPayRate={rate?.qrPayRate ?? null} onClose={() => setQrResult(null)} onRescan={startScan} />
       <Sheet open={!!soon} onClose={() => setSoon(null)} title={soon ?? ''}>

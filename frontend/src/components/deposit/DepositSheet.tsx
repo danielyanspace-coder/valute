@@ -53,7 +53,8 @@ export function DepositSheet({ open, onClose }: { open: boolean; onClose: () => 
   const now = Date.now() + skew;
   const r = info?.request ?? null;
   const active = r?.status === 'active' && r.expiresAt > now ? r : null;
-  const min = info ? shortUsdt(info.minDepositMicro) : '10';
+  const min = info?.minDepositMicro ? shortUsdt(info.minDepositMicro) : null;
+  const anyAmount = min ? `любую сумму от ${min} USDT` : 'любую сумму';
 
   const run = async (fn: () => Promise<DepositInfoDto>) => {
     setBusy(true);
@@ -128,7 +129,7 @@ export function DepositSheet({ open, onClose }: { open: boolean; onClose: () => 
             )}
           </div>
         ) : (
-          <ResultCard r={r} now={now} min={min} busy={busy} busyUntil={busyUntil} onOpen={() => run(api.depositOpen)} />
+          <ResultCard r={r} now={now} anyAmount={anyAmount} busy={busy} busyUntil={busyUntil} onOpen={() => run(api.depositOpen)} />
         )}
         {error && info && <div className="dep-error">{error}</div>}
 
@@ -142,7 +143,7 @@ export function DepositSheet({ open, onClose }: { open: boolean; onClose: () => 
 
         <div className="kv-list dep-facts">
           <div className="kv"><span className="muted">Сеть</span><span>TRON (TRC-20)</span></div>
-          <div className="kv"><span className="muted">Минимум</span><span>{min} USDT</span></div>
+          <div className="kv"><span className="muted">Сумма</span><span>{min ? `от ${min} USDT` : 'Любая'}</span></div>
           <div className="kv"><span className="muted">Время на перевод</span><span>{TTL_MIN} минут</span></div>
           <div className="kv"><span className="muted">Зачисление</span><span>{info?.confirmations ?? 20} подтверждений, 1-2 минуты</span></div>
           <div className="kv"><span className="muted">Комиссия кошелька</span><span className="up">0 USDT</span></div>
@@ -152,7 +153,7 @@ export function DepositSheet({ open, onClose }: { open: boolean; onClose: () => 
           <b>Как пополнить</b>
           <ol>
             <li>Нажмите «Получить адрес». Он закрепится за вами на {TTL_MIN} минут.</li>
-            <li>На бирже или в кошельке выберите вывод USDT, сеть <b>TRC-20</b>, и отправьте любую сумму от {min} USDT.</li>
+            <li>На бирже или в кошельке выберите вывод USDT, сеть <b>TRC-20</b>, и отправьте {anyAmount}.</li>
             <li>Деньги появятся на балансе автоматически, бот пришлёт уведомление.</li>
           </ol>
           <p className="muted small">
@@ -166,10 +167,10 @@ export function DepositSheet({ open, onClose }: { open: boolean; onClose: () => 
 }
 
 /** No open request: either nothing yet, or the last one just ended (paid or expired). */
-function ResultCard({ r, now, min, busy, busyUntil, onOpen }: {
+function ResultCard({ r, now, anyAmount, busy, busyUntil, onOpen }: {
   r: DepositRequestDto | null;
   now: number;
-  min: string;
+  anyAmount: string;
   busy: boolean;
   busyUntil: number | null;
   onOpen: () => void;
@@ -199,7 +200,7 @@ function ResultCard({ r, now, min, busy, busyUntil, onOpen }: {
       ) : (
         <>
           <b className="dep-pending-title">Пополнение через USDT TRC-20</b>
-          <p className="muted dep-pending-text">Получите адрес и в течение {TTL_MIN} минут отправьте на него любую сумму от {min} USDT.</p>
+          <p className="muted dep-pending-text">Получите адрес и в течение {TTL_MIN} минут отправьте на него {anyAmount}.</p>
         </>
       )}
       {wait !== null && <div className="dep-busy">Все адреса сейчас заняты. Попробуйте через {wait} мин.</div>}

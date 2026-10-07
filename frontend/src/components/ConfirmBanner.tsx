@@ -17,8 +17,14 @@ export function ConfirmBanner({ w, onOpen }: { w: WithdrawalDto; onOpen: () => v
     <button className="card confirm-banner" onClick={onOpen}>
       <span className="confirm-banner-icon"><IconClock size={18} /></span>
       <span className="confirm-banner-text">
-        <b>Подтвердите получение {fmtRub0(w.amountRub)}</b>
-        <span>{left !== null && left > 0 ? `Заявка №${w.id} · осталось ${fmtCountdown(left)}` : `Заявка №${w.id} · нужен ваш ответ`}</span>
+        <b>{w.status === 'not_received' ? `Проверяем платёж ${fmtRub0(w.amountRub)}` : `Подтвердите получение ${fmtRub0(w.amountRub)}`}</b>
+        <span>
+          {w.status === 'not_received'
+            ? `Заявка №${w.id} · с вами свяжется поддержка`
+            : left !== null && left > 0
+              ? `Заявка №${w.id} · осталось ${fmtCountdown(left)}`
+              : `Заявка №${w.id} · нужен ваш ответ`}
+        </span>
       </span>
       <IconChevronRight size={16} />
     </button>

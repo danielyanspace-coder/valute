@@ -8,6 +8,7 @@ import { IconAlert, IconArrowUpRight, IconCard, IconHistory, IconPlus } from './
 import { CoinIcon } from './CoinIcon';
 import { DEPOSIT_STATUS_LABEL } from './deposit/DepositDetailSheet';
 import type { DepositDto } from '../../../shared/api';
+import { USDT_PAYOUT_STATUS_LABEL } from '../../../shared/usdtPayout';
 
 const who = (p: { username: string | null; firstName: string }) => (p.username ? `@${p.username}` : p.firstName);
 const CHECK_STATUS = { active: 'Активен', claimed: 'Активирован', cancelled: 'Отменён' } as const;
@@ -19,9 +20,10 @@ interface Props {
   onOpenChecks: () => void;
   onOpenOrder: (id: number) => void;
   onOpenDeposit: (d: DepositDto) => void;
+  onOpenUsdtPayout: (id: number) => void;
 }
 
-export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks, onOpenOrder, onOpenDeposit }: Props) {
+export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks, onOpenOrder, onOpenDeposit, onOpenUsdtPayout }: Props) {
   return (
     <section className="history">
       <h2 className="screen-title">История</h2>
@@ -70,6 +72,16 @@ export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks, 
                   sub="USDT · TRON (TRC-20)" amount={`+${shortUsdt(d.amountMicro)} USDT`} amountClass={d.status === 'credited' ? 'up' : ''}
                   chip={d.status === 'credited' ? undefined : DEPOSIT_STATUS_LABEL[d.status]} chipClass={`dep-${d.status}`}
                   at={d.createdAt} onClick={() => onOpenDeposit(d)} />
+              );
+            }
+            if (h.type === 'usdt_payout') {
+              const p = h.usdtPayout;
+              return (
+                <Row key={`u${p.id}`} icon={<CoinIcon symbol="USDT" size={36} />} iconClass="dep" title="Вывод USDT"
+                  sub={`на ${p.address.slice(0, 6)}…${p.address.slice(-4)} · TRC-20`}
+                  amount={`−${shortUsdt(p.status === 'rejected' ? p.amountMicro : p.totalMicro)} USDT`}
+                  chip={USDT_PAYOUT_STATUS_LABEL[p.status]} chipClass={`s-${p.status === 'sent' ? 'completed' : p.status === 'rejected' ? 'rejected' : 'pending'}`}
+                  at={p.createdAt} onClick={() => onOpenUsdtPayout(p.id)} />
               );
             }
             if (h.type === 'deduction') {

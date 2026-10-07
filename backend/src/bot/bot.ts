@@ -162,6 +162,8 @@ export class WalletBot {
       });
 
     if (user.support_lock_at) return answer([], 'Свяжитесь с поддержкой');
+    const pending = this.deps.withdrawals.answerLock(user.id);
+    if (pending) return answer([], `Сначала ответьте по заявке №${pending.withdrawalId}`);
     if (user.blocked) return answer([], 'Операции недоступны · открыть кошелёк');
     const balance = this.deps.ledger.balances(user.id).availableMicro;
 
@@ -286,8 +288,8 @@ export class WalletBot {
           return edit(`Заявка №${w.id}: получение ${sum} подтверждено. Спасибо!`);
         case 'dn':
           this.deps.withdrawals.userNotReceived(user.id, w.id);
-          await answer('Мы проверим платёж');
-          return edit(`Заявка №${w.id}: вы сообщили, что оплата не поступила. Мы проверим платёж. Если деньги придут, подтвердите получение в кошельке.`, this.openWallet());
+          await answer('С вами свяжется поддержка');
+          return edit(`Заявка №${w.id}: вы сообщили, что оплата не поступила. С вами свяжется поддержка. Если деньги придут, подтвердите получение в кошельке.`, this.openWallet());
         case 'da':
           return answer('Откройте кошелёк и укажите сумму, которая поступила', true);
       }

@@ -13,10 +13,11 @@ interface Props {
   onOpenWithdrawal: (id: number) => void;
   onAnything: () => void;
   onOpenOrder: (id: number) => void;
+  onOpenUsdtPayout: (id: number) => void;
 }
 
 /** Polls in-app notifications and turns each into the right screen or modal. */
-export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything, onOpenOrder }: Props) {
+export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything, onOpenOrder, onOpenUsdtPayout }: Props) {
   const [modal, setModal] = useState<NotificationDto | null>(null);
 
   const poll = useCallback(async () => {
@@ -28,18 +29,20 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
     // Show the most important one; the rest are reflected in balances and history.
     const order = [
       'support_lock', 'deal_reminder', 'order_clarify', 'deal_cancelled', 'deal_corrected', 'obligation_repaid', 'order_rejected',
-      'order_paid', 'deposit_credited', 'transfer_received', 'check_claimed', 'deal_completed',
+      'usdt_payout_rejected', 'order_paid', 'usdt_payout_sent', 'deposit_credited', 'transfer_received', 'check_claimed', 'deal_completed',
     ];
     const top = [...items].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))[0];
-    hapticNotify(['deal_completed', 'transfer_received', 'check_claimed', 'deposit_credited'].includes(top.type) ? 'success' : 'warning');
+    hapticNotify(['deal_completed', 'transfer_received', 'check_claimed', 'deposit_credited', 'usdt_payout_sent'].includes(top.type) ? 'success' : 'warning');
     // support_lock: the blocking screen is driven by /api/me (refreshed above), nothing to show here.
     if (top.type === 'support_lock') return;
     // Service orders: open the order itself, it shows the status, the question or the reason.
     if (top.type.startsWith('order_') && top.order) return onOpenOrder(top.order.id);
     // Deals: the deal screen shows the buttons and the outcome.
     if (top.type.startsWith('deal_') && top.withdrawalId) return onOpenWithdrawal(top.withdrawalId);
+    // USDT withdrawals: the request screen shows the hash or the reason.
+    if (top.type.startsWith('usdt_payout_') && top.usdtPayout) return onOpenUsdtPayout(top.usdtPayout.id);
     setModal(top);
-  }, [modal, onAnything, onOpenWithdrawal, onOpenOrder]);
+  }, [modal, onAnything, onOpenWithdrawal, onOpenOrder, onOpenUsdtPayout]);
 
   usePolling(poll, 5000);
 

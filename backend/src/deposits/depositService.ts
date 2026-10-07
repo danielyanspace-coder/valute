@@ -583,7 +583,7 @@ export class DepositService {
     if (!isTronAddress(a)) throw new AppError(400, 'bad_address', 'Это не адрес TRON. Он начинается на T и состоит из 34 символов');
     if (this.isOwnWallet(a)) throw new AppError(409, 'exists', 'Этот адрес уже добавлен');
     this.db.prepare('INSERT INTO deposit_pool (address, label, own, created_at) VALUES (?, ?, ?, ?)').run(a, label.trim().slice(0, 40), own ? 1 : 0, this.now());
-    this.opts.audit?.log({ actor: 'admin', type: 'manual_adjustment', data: { action: own ? 'own_wallet_added' : 'deposit_address_added', address: a } });
+    this.opts.audit?.log({ actor: 'admin', type: 'deposit_address_added', data: { address: a, own } });
     return this.poolList();
   }
 

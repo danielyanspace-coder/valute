@@ -12,6 +12,7 @@ export interface NotifyRef {
   checkId?: number;
   orderId?: number;
   depositId?: number;
+  usdtPayoutId?: number;
   obligationId?: number;
   amountMicro?: number;
   /** Bot message text. null or missing = in-app only. */
@@ -28,6 +29,7 @@ export interface StoredNotification {
   checkId: number | null;
   orderId: number | null;
   depositId: number | null;
+  usdtPayoutId: number | null;
   obligationId: number | null;
   amountMicro: number | null;
   createdAt: number;
@@ -48,12 +50,12 @@ export class NotificationService {
   notify(user: { id: number; telegram_id: number }, type: NotificationType, r: NotifyRef = {}): void {
     this.db
       .prepare(
-        `INSERT INTO notifications (user_id, type, withdrawal_id, transfer_id, check_id, order_id, deposit_id, obligation_id, amount_micro, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO notifications (user_id, type, withdrawal_id, transfer_id, check_id, order_id, deposit_id, usdt_payout_id, obligation_id, amount_micro, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         user.id, type, r.withdrawalId ?? null, r.transferId ?? null, r.checkId ?? null, r.orderId ?? null, r.depositId ?? null,
-        r.obligationId ?? null, r.amountMicro ?? null, this.now(),
+        r.usdtPayoutId ?? null, r.obligationId ?? null, r.amountMicro ?? null, this.now(),
       );
     if (this.bot && r.botText) this.bot.send(user.telegram_id, r.botText, { buttons: r.buttons }).catch(this.onError);
   }
@@ -62,7 +64,7 @@ export class NotificationService {
     return this.db
       .prepare(
         `SELECT id, type, withdrawal_id AS withdrawalId, transfer_id AS transferId, check_id AS checkId, order_id AS orderId, deposit_id AS depositId,
-                obligation_id AS obligationId, amount_micro AS amountMicro, created_at AS createdAt
+                usdt_payout_id AS usdtPayoutId, obligation_id AS obligationId, amount_micro AS amountMicro, created_at AS createdAt
          FROM notifications WHERE user_id = ? AND seen_at IS NULL ORDER BY id`,
       )
       .all(userId) as unknown as StoredNotification[];

@@ -971,3 +971,15 @@ button.card:active { transform: scale(0.98); border-color: var(--border-strong);
 .theme-btn:active svg { transform: rotate(-25deg) scale(0.9); }
 :root[data-theme='light'] .bot-command { background: #ffffff; }
 :root[data-theme='light'] .profile-avatar { color: #ffffff; }
+
+/* ---------- USDT TRC-20 withdrawal ---------- */
+.addr-input input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13.5px; }
+.addr-btn {
+  flex-shrink: 0; height: 34px; min-width: 34px; padding: 0 10px; border-radius: 10px; border: 0; cursor: pointer;
+  display: grid; place-items: center; background: var(--fill-2); color: var(--text); font: inherit; font-size: 13px; font-weight: 600;
+}
+.usdt-calc .kv { font-size: 13px; padding: 8px 0; }
+.usdt-calc .kv.total { font-size: 14px; }
+.usdt-summary { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.usdt-address { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.5; text-align: center; word-break: break-all; color: var(--text-3); }
+.usdt-address .hl { color: var(--text); font-weight: 700; }

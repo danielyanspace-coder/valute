@@ -74,7 +74,7 @@ export function DepositsPanel({ api, top }: { api: AdminApi; top: ReactNode }) {
     <div className="adm">
       {top}
       <nav className="adm-tabs">
-        {TABS.map((t) => {
+        {TABS.filter((t) => t.id !== 'below_min' || filter === 'below_min' || !!counts?.below_min).map((t) => {
           const n = t.id === 'all' || t.id === 'pool' || !counts ? null : counts[t.id];
           return (
             <button key={t.id} className={`adm-tab ${filter === t.id ? 'active' : ''}`} onClick={() => { setFilter(t.id); setSelected(null); setItems([]); }}>

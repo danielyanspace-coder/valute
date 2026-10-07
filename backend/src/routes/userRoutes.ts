@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import type { CreateCheckRequest, CreateOrderRequest, CreateWithdrawalRequest, DepositInfoDto, FineLookupDto, HistoryItem, MeDto, NotificationDto, SendTransferRequest, ServicesConfigDto } from '../../../shared/api.js';
+import type { CreateCheckRequest, CreateOrderRequest, CreateUsdtPayoutRequest, CreateWithdrawalRequest, DepositInfoDto, FineLookupDto, HistoryItem, MeDto, NotificationDto, SendTransferRequest, ServicesConfigDto } from '../../../shared/api.js';
 import type { DepositService } from '../deposits/depositService.js';
+import type { UsdtPayoutService } from '../usdtPayouts/usdtPayoutService.js';
 import { STEAM_MAX_RUB, STEAM_MIN_RUB, MAX_PARKING_RUB, MIN_PARKING_RUB } from '../../../shared/services.js';
 import type { FineLookup } from '../orders/fineLookup.js';
 import type { OrderService } from '../orders/orderService.js';
@@ -23,6 +24,7 @@ export interface UserRouteDeps {
   users: UserRepo;
   depositMinUsdt: number;
   deposits: DepositService;
+  usdtPayouts: UsdtPayoutService;
   orders: OrderService;
   fineLookup: FineLookup;
   servicesDiscountPercent: number;
@@ -36,6 +38,11 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     if (req.method === 'GET' || req.url.startsWith('/api/notifications')) return;
     if (req.user && deps.withdrawals.contactLock(req.user.id)) {
       return reply.code(423).send({ error: 'locked', message: 'Действие недоступно. Свяжитесь с поддержкой' });
+    }
+    // An expired deal: only the answer itself is allowed.
+    const lock = req.user ? deps.withdrawals.answerLock(req.user.id) : null;
+    if (lock && !/^\/api\/withdrawals\/\d+\/(received|not-received|other-amount)$/.test(req.url.split('?')[0])) {
+      return reply.code(423).send({ error: 'answer_required', message: `Сначала ответьте по заявке №${lock.withdrawalId}: поступила ли оплата` });
     }
   });
 
@@ -54,6 +61,8 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
       blocked: !!u.blocked,
       supportUsername: deps.supportUsername,
       contactLock: deps.withdrawals.contactLock(u.id),
+      answerLock: deps.withdrawals.answerLock(u.id),
+      usdtPayout: { feeMicro: deps.usdtPayouts.opts.feeMicro, minMicro: deps.usdtPayouts.opts.minMicro },
       botUsername: deps.botUsername(),
       stats: { ...deps.withdrawals.exchangeStats(u.id), memberSince: u.created_at },
     };
@@ -78,6 +87,14 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     return deps.withdrawals.toUserDto(w);
   });
 
+  // USDT TRC-20 to an external wallet: a request the operator sends by hand.
+  app.get<{ Params: { id: string } }>('/api/usdt-withdrawals/:id', async (req) =>
+    deps.usdtPayouts.toUserDto(deps.usdtPayouts.getForUser(req.user!.id, Number(req.params.id))),
+  );
+  app.post<{ Body: CreateUsdtPayoutRequest }>('/api/usdt-withdrawals', async (req) =>
+    deps.usdtPayouts.toUserDto(await deps.usdtPayouts.create(req.user!, req.body ?? ({} as CreateUsdtPayoutRequest), { ip: req.ip })),
+  );
+
   app.post<{ Params: { id: string } }>('/api/withdrawals/:id/received', async (req) =>
     deps.withdrawals.toUserDto(deps.withdrawals.userReceived(req.user!.id, Number(req.params.id))),
   );
@@ -97,6 +114,7 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
       const c = n.checkId ? deps.transfers.check(n.checkId) : undefined;
       const o = n.orderId ? deps.orders.row(n.orderId) : undefined;
       const d = n.depositId ? deps.deposits.get(n.depositId) : null;
+      const up = n.usdtPayoutId ? deps.usdtPayouts.get(n.usdtPayoutId) : null;
       return {
         id: n.id,
         type: n.type,
@@ -105,6 +123,7 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
         check: c ? deps.transfers.checkDto(c) : null,
         order: o ? deps.orders.toUserDto(o) : null,
         deposit: d ? deps.deposits.toUserDto(d) : null,
+        usdtPayout: up ? deps.usdtPayouts.toUserDto(up) : null,
         deduction: n.type === 'obligation_repaid' && n.obligationId
           ? { id: n.id, amountMicro: n.amountMicro ?? 0, reason: deps.obligations.get(n.obligationId).publicReason, createdAt: n.createdAt }
           : null,
@@ -143,7 +162,8 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
       return { type: 'deposit', at: deposit.createdAt, deposit };
     });
     const deductions = deps.obligations.deductionsForUser(uid).map((deduction): HistoryItem => ({ type: 'deduction', at: deduction.createdAt, deduction }));
-    return { items: [...deps.transfers.history(uid), ...orders, ...deposits, ...deductions].sort((a, b) => b.at - a.at).slice(0, 100) };
+    const payouts = deps.usdtPayouts.listForUser(uid).map((p): HistoryItem => ({ type: 'usdt_payout', at: p.created_at, usdtPayout: deps.usdtPayouts.toUserDto(p) }));
+    return { items: [...deps.transfers.history(uid), ...orders, ...deposits, ...deductions, ...payouts].sort((a, b) => b.at - a.at).slice(0, 100) };
   });
 
   // ---------- Services: fines, parking, Steam ----------

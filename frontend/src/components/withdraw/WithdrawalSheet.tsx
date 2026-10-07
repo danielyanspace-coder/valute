@@ -162,7 +162,7 @@ export function WithdrawalSheet({ id, onClose, onChanged, supportUsername, start
           {mode === 'not' && (
             <div className="dispute-box">
               <b>Оплата не поступила?</b>
-              <p>Проверьте историю операций в банке. Мы проверим платёж и свяжемся с вами. Если деньги придут позже, подтвердите получение здесь.</p>
+              <p>Проверьте историю операций в банке. После этого с вами свяжется поддержка и поможет разобраться. Если деньги придут позже, подтвердите получение здесь.</p>
               <div className="sheet-actions">
                 <button className="btn ghost" disabled={busy} onClick={() => setMode('idle')}>Назад</button>
                 <button className="btn danger" disabled={busy} onClick={() => act(() => api.dealNotReceived(w.id))}>Не поступила</button>
@@ -214,11 +214,11 @@ function boxTitle(w: WithdrawalDto): string {
 function boxText(w: WithdrawalDto): string {
   switch (w.status) {
     case 'not_received':
-      return 'Вы сообщили, что оплата не поступила. Если деньги пришли, подтвердите получение.';
+      return 'Вы сообщили, что оплата не поступила. С вами свяжется поддержка. Если деньги пришли, подтвердите получение.';
     case 'mismatch':
       return `Вы сообщили о сумме ${fmtRub0(w.reportedRub ?? 0)}. Если сумма другая, отправьте её снова.`;
     case 'inactive':
-      return 'Сделка на рассмотрении администратора. Если деньги пришли, подтвердите получение.';
+      return 'Кошелёк приостановлен, пока вы не ответите. Поступила ли оплата?';
     default:
       return `Проверьте счёт и подтвердите поступление ${fmtRub0(w.amountRub)}. Чем быстрее вы подтверждаете, тем выше ваш рейтинг и тем выгоднее курс для вас.`;
   }

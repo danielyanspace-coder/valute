@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { MeDto, WithdrawalDto } from '../../../../shared/api';
+import type { MeDto, UsdtPayoutDto, WithdrawalDto } from '../../../../shared/api';
+import { parseUsdt, shortUsdt } from '../../../../shared/transfers';
+import { maxUsdtPayoutMicro, validateUsdtPayout } from '../../../../shared/usdtPayout';
 import {
   CARD_BRAND_LABEL,
   MIN_PAYOUT_RUB,
@@ -17,17 +19,18 @@ import { findBank } from '../../../../shared/sbpBanks';
 import type { WalletRate } from '../../lib/api';
 import { api } from '../../lib/backend';
 import { fmtMicro, fmtRub, fmtRub0 } from '../../lib/format';
-import { haptic, hapticNotify, tg } from '../../lib/telegram';
-import { IconAlert, IconChat, IconCheck, IconChevronRight, IconClock } from '../icons';
+import { canUseNativeQr, haptic, hapticNotify, tg } from '../../lib/telegram';
+import { IconAlert, IconChat, IconCheck, IconChevronRight, IconClock, IconQr } from '../icons';
 import { Sheet } from '../Sheet';
 import { CoinIcon } from '../CoinIcon';
 import { MirMark, SbpMark, SbpMirMark } from '../brandMarks';
 import { BankAvatar, BankPicker } from './BankPicker';
 
-type Step = 'choose' | 'crypto' | 'card-method' | 'sbp' | 'bank' | 'card' | 'terms' | 'done';
+type Step = 'choose' | 'crypto' | 'crypto-terms' | 'crypto-done' | 'card-method' | 'sbp' | 'bank' | 'card' | 'terms' | 'done';
 
 const BACK: Partial<Record<Step, Step>> = {
   crypto: 'choose',
+  'crypto-terms': 'crypto',
   'card-method': 'choose',
   sbp: 'card-method',
   card: 'card-method',
@@ -36,7 +39,9 @@ const BACK: Partial<Record<Step, Step>> = {
 
 const TITLE: Record<Step, string> = {
   choose: 'Вывести',
-  crypto: 'На криптокошелёк',
+  crypto: 'Вывод USDT',
+  'crypto-terms': 'Проверьте перевод',
+  'crypto-done': '',
   'card-method': 'На банковскую карту',
   sbp: 'Перевод по СБП',
   bank: 'Банк получателя',
@@ -50,13 +55,19 @@ interface Props {
   onClose: () => void;
   me: MeDto | null;
   rate: WalletRate | null;
-  onCreated: (w: WithdrawalDto) => void;
+  /** A request was created: refresh balances and history. */
+  onCreated: (w: WithdrawalDto | null) => void;
   onOpenWithdrawal: (id: number) => void;
+  onOpenUsdtPayout: (id: number) => void;
 }
+
+const TRON_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+/** "tron:T...?amount=1" and similar wallet QR payloads → the bare address. */
+const cleanAddress = (s: string) => s.trim().replace(/^tron:/i, '').replace(/[?#].*$/, '').trim();
 
 const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
-export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdrawal }: Props) {
+export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdrawal, onOpenUsdtPayout }: Props) {
   const [step, setStep] = useState<Step>('choose');
   const [method, setMethod] = useState<'sbp' | 'card'>('sbp');
   const [phone, setPhone] = useState('+7');
@@ -69,6 +80,9 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
   const [serverError, setServerError] = useState<string | null>(null);
   const [created, setCreated] = useState<WithdrawalDto | null>(null);
   const [requestId, setRequestId] = useState(newRequestId);
+  const [address, setAddress] = useState('');
+  const [usdt, setUsdt] = useState('');
+  const [usdtCreated, setUsdtCreated] = useState<UsdtPayoutDto | null>(null);
 
   // Every opening starts a fresh flow; the request id protects against double submits within it.
   useEffect(() => {
@@ -80,6 +94,9 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
     setServerError(null);
     setCreated(null);
     setRequestId(newRequestId());
+    setAddress('');
+    setUsdt('');
+    setUsdtCreated(null);
   }, [open]);
 
   const payoutRate = rate?.walletRate ?? 0;
@@ -102,6 +119,49 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
   };
 
   const back = step === 'terms' ? () => go(method) : BACK[step] ? () => go(BACK[step]!) : undefined;
+
+  // ---------- USDT TRC-20 ----------
+  const feeMicro = me?.usdtPayout.feeMicro ?? 0;
+  const minMicro = me?.usdtPayout.minMicro ?? 0;
+  const parsedUsdt = usdt ? parseUsdt(usdt) : null;
+  const usdtMicro = typeof parsedUsdt === 'number' ? parsedUsdt : 0;
+  const usdtError = typeof parsedUsdt === 'string' ? parsedUsdt : usdtMicro ? validateUsdtPayout(usdtMicro, available, feeMicro, minMicro) : null;
+  const addressError = address && !TRON_RE.test(address) ? 'Адрес TRON начинается на T и состоит из 34 символов' : null;
+  const canUsdt = TRON_RE.test(address) && usdtMicro > 0 && !usdtError;
+  const maxUsdt = maxUsdtPayoutMicro(available, feeMicro);
+
+  const scanAddress = () => {
+    haptic();
+    tg!.showScanQrPopup({ text: 'QR-код адреса USDT TRC-20' }, (text) => {
+      setAddress(cleanAddress(text));
+      return true;
+    });
+  };
+  const pasteAddress = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) setAddress(cleanAddress(text));
+    } catch {
+      /* clipboard not allowed: the user pastes by hand */
+    }
+  };
+
+  const submitUsdt = async () => {
+    setSubmitting(true);
+    setServerError(null);
+    try {
+      const p = await api.createUsdtPayout({ address, amount: usdt, requestId, acceptedTerms: true });
+      hapticNotify('success');
+      setUsdtCreated(p);
+      setStep('crypto-done');
+      onCreated(null);
+    } catch (e) {
+      hapticNotify('error');
+      setServerError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const submit = async () => {
     setSubmitting(true);
@@ -149,8 +209,8 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
             icon={<CoinIcon symbol="USDT" size={40} />}
             iconTone="plain"
             title="На криптокошелёк"
-            subtitle="USDT в сети TRON (TRC-20)"
-            badge="Скоро"
+            subtitle={`USDT в сети TRON (TRC-20)${feeMicro ? `, комиссия ${shortUsdt(feeMicro)} USDT` : ''}`}
+            disabled={me?.blocked}
             onClick={() => go('crypto')}
           />
         </div>
@@ -159,10 +219,93 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
 
     case 'crypto':
       body = (
-        <div className="soon-block">
-          <CoinIcon symbol="USDT" size={56} />
-          <b>Скоро</b>
-          <p className="muted">Вывод USDT на внешний кошелёк в сети TRON (TRC-20) появится в ближайшее время. Комиссия составит 5 USDT за перевод.</p>
+        <div className="form">
+          <Field label="Адрес получателя, сеть TRON (TRC-20)" error={addressError}>
+            <div className="input with-suffix addr-input">
+              <input
+                value={address}
+                onChange={(e) => setAddress(cleanAddress(e.target.value))}
+                placeholder="T..."
+                spellCheck={false}
+                autoCapitalize="off"
+                autoCorrect="off"
+              />
+              {canUseNativeQr() ? (
+                <button className="addr-btn" onClick={scanAddress} aria-label="Сканировать QR"><IconQr size={18} /></button>
+              ) : (
+                <button className="addr-btn text" onClick={pasteAddress}>Вставить</button>
+              )}
+            </div>
+          </Field>
+          <Field label="Сумма к получению" error={usdtError}>
+            <div className="input with-suffix amount-input">
+              <input inputMode="decimal" value={usdt} onChange={(e) => setUsdt(e.target.value.replace(/[^\d.,]/g, '').slice(0, 12))} placeholder={`от ${shortUsdt(minMicro)}`} />
+              <span className="suffix">USDT</span>
+            </div>
+            <div className="chips">
+              {maxUsdt >= minMicro && <button className="chip" onClick={() => setUsdt(shortUsdt(maxUsdt))}>Всё: {shortUsdt(maxUsdt)} USDT</button>}
+            </div>
+          </Field>
+          <div className="kv-list usdt-calc">
+            <div className="kv"><span className="muted">Получатель получит</span><span>{shortUsdt(usdtMicro)} USDT</span></div>
+            <div className="kv"><span className="muted">Комиссия сети</span><span>{shortUsdt(feeMicro)} USDT</span></div>
+            <div className="kv total"><span>Спишется с баланса</span><b>{shortUsdt(usdtMicro ? usdtMicro + feeMicro : 0)} USDT</b></div>
+          </div>
+          <span className="field-hint">Доступно {fmtMicro(available)}. Минимум {shortUsdt(minMicro)} USDT.</span>
+          <button className="btn primary block" disabled={!canUsdt} onClick={() => go('crypto-terms')}>Продолжить</button>
+        </div>
+      );
+      break;
+
+    case 'crypto-terms':
+      body = (
+        <div className="form">
+          <div className="summary usdt-summary">
+            <CoinIcon symbol="USDT" size={44} />
+            <div className="summary-amount">{shortUsdt(usdtMicro)} USDT</div>
+            <div className="usdt-address">
+              <span className="hl">{address.slice(0, 6)}</span>{address.slice(6, -6)}<span className="hl">{address.slice(-6)}</span>
+            </div>
+            <div className="summary-freeze">Сеть TRON (TRC-20) · спишется {shortUsdt(usdtMicro + feeMicro)} USDT с комиссией</div>
+          </div>
+          <div className="rules">
+            <Rule icon={<IconAlert size={18} />} title="Только сеть TRON (TRC-20)" tone="warn">
+              Убедитесь, что кошелёк или биржа принимает USDT именно в сети TRC-20. Перевод на адрес другой сети будет потерян, вернуть его не получится.
+            </Rule>
+            <Rule icon={<IconClock size={18} />} title="Отправляем вручную">
+              Обычно в течение часа. Как только USDT уйдут, пришлём уведомление с хэшем транзакции.
+            </Rule>
+            <Rule icon={<IconChat size={18} />} title="Заявку нельзя изменить">
+              Проверьте первые и последние символы адреса. Если ошиблись, сразу напишите в поддержку, пока перевод не отправлен.
+            </Rule>
+          </div>
+          <label className="checkbox">
+            <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
+            <span className="checkbox-box"><IconCheck size={14} /></span>
+            <span>Адрес проверил, сеть TRC-20</span>
+          </label>
+          {serverError && <Notice tone="danger">{serverError}</Notice>}
+          <button className="btn primary block" disabled={!agreed || submitting} onClick={submitUsdt}>
+            {submitting ? 'Отправляем заявку…' : `Вывести ${shortUsdt(usdtMicro)} USDT`}
+          </button>
+        </div>
+      );
+      break;
+
+    case 'crypto-done':
+      body = usdtCreated && (
+        <div className="done">
+          <span className="done-icon"><IconCheck size={30} /></span>
+          <b>Заявка принята</b>
+          <p className="muted">
+            {shortUsdt(usdtCreated.amountMicro)} USDT на {usdtCreated.address.slice(0, 6)}…{usdtCreated.address.slice(-6)}. Отправим вручную и пришлём
+            уведомление с хэшем транзакции.
+          </p>
+          <div className="done-freeze">{shortUsdt(usdtCreated.totalMicro)} USDT заморожены до отправки</div>
+          <div className="sheet-actions">
+            <button className="btn ghost" onClick={onClose}>Готово</button>
+            <button className="btn primary" onClick={() => onOpenUsdtPayout(usdtCreated.id)}>Открыть заявку</button>
+          </div>
         </div>
       );
       break;
@@ -299,8 +442,8 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
               Сообщите об этом в заявке, мы проверим платёж. Заявку после создания отменить нельзя.
             </Rule>
             <Rule icon={<IconAlert size={18} />} title="Не пропускайте уведомления" tone="warn">
-              Если не ответить на 5 уведомлений, сделка уйдёт на рассмотрение администратора, а USDT останутся
-              замороженными до решения.
+              Если не ответить на 5 уведомлений, сделка уйдёт на рассмотрение администратора, а кошелёк будет
+              приостановлен, пока вы не ответите по заявке.
             </Rule>
           </div>
           <label className="checkbox">
@@ -325,6 +468,10 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
             {fmtRub0(created.amountRub)} на {created.destination}. Мы пришлём уведомление, когда деньги начнут путь.
           </p>
           <div className="done-freeze">{fmtMicro(created.amountMicro)} заморожены до завершения вывода</div>
+          <Notice tone="warn">
+            <b>Будьте внимательны.</b> Когда деньги начнут путь, бот пришлёт уведомления по этой заявке. Проверьте счёт и ответьте на них.
+            Если не ответить, кошелёк будет приостановлен до вашего ответа.
+          </Notice>
           <div className="sheet-actions">
             <button className="btn ghost" onClick={onClose}>Готово</button>
             <button className="btn primary" onClick={() => onOpenWithdrawal(created.id)}>Открыть заявку</button>

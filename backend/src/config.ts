@@ -32,8 +32,11 @@ export const config = {
     ETH: process.env.ETH_RPC_URL || 'https://ethereum-rpc.publicnode.com',
   },
   chainalysisSanctionsApiKey: process.env.CHAINALYSIS_SANCTIONS_API_KEY ?? '',
-  /** Deposits below this are not credited (dust and spam transfers). */
-  depositMinUsdt: num('DEPOSIT_MIN_USDT', 10),
+  /** Deposits below this wait for the operator. 0 = any amount (spam dust under 0.1 USDT is always ignored). */
+  depositMinUsdt: num('DEPOSIT_MIN_USDT', 0),
+  /** USDT TRC-20 withdrawals: fee charged on top of the amount, and the smallest amount. */
+  usdtWithdrawFeeUsdt: num('USDT_WITHDRAW_FEE', 5),
+  usdtWithdrawMinUsdt: num('USDT_WITHDRAW_MIN', 10),
   /** Deposit watcher. A free key from trongrid.io lifts the anonymous rate limit. */
   tronGridUrl: process.env.TRONGRID_URL || 'https://api.trongrid.io',
   tronGridApiKey: process.env.TRONGRID_API_KEY ?? '',

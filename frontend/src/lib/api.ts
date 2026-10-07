@@ -3,6 +3,10 @@ import type {
   AdminBoardDto,
   AdminBroadcastDto,
   AdminDepositAddressDto,
+  AdminUsdtPayoutCounts,
+  AdminUsdtPayoutDto,
+  CreateUsdtPayoutRequest,
+  UsdtPayoutDto,
   AdminDepositCounts,
   AdminDepositDto,
   AdminObligationDto,
@@ -77,6 +81,8 @@ export interface Api {
   withdrawals(): Promise<{ items: WithdrawalDto[] }>;
   withdrawal(id: number): Promise<WithdrawalDto>;
   createWithdrawal(req: CreateWithdrawalRequest): Promise<WithdrawalDto>;
+  createUsdtPayout(req: CreateUsdtPayoutRequest): Promise<UsdtPayoutDto>;
+  usdtPayout(id: number): Promise<UsdtPayoutDto>;
   dealReceived(id: number): Promise<WithdrawalDto>;
   dealNotReceived(id: number): Promise<WithdrawalDto>;
   dealOtherAmount(id: number, amountRub: number): Promise<WithdrawalDto>;
@@ -138,6 +144,9 @@ export interface AdminApi {
   deposits(status: string): Promise<{ items: AdminDepositDto[]; counts: AdminDepositCounts; enabled: boolean }>;
   depositCredit(id: number, note: string, userId?: number): Promise<AdminDepositDto>;
   depositReject(id: number, reason: string): Promise<AdminDepositDto>;
+  usdtPayouts(status: string): Promise<{ items: AdminUsdtPayoutDto[]; counts: AdminUsdtPayoutCounts }>;
+  usdtPayoutSent(id: number, txId: string, force: boolean, note: string): Promise<AdminUsdtPayoutDto>;
+  usdtPayoutReject(id: number, reason: string): Promise<AdminUsdtPayoutDto>;
   depositPool(): Promise<{ items: AdminDepositAddressDto[] }>;
   depositPoolAdd(address: string, label: string, own: boolean): Promise<{ items: AdminDepositAddressDto[] }>;
   depositPoolUpdate(id: number, patch: { enabled?: boolean; label?: string }): Promise<{ items: AdminDepositAddressDto[] }>;
@@ -171,6 +180,8 @@ export const httpApi: Api = {
   withdrawals: () => request('GET', '/api/withdrawals', userAuth()),
   withdrawal: (id) => request('GET', `/api/withdrawals/${id}`, userAuth()),
   createWithdrawal: (req) => request('POST', '/api/withdrawals', userAuth(), req),
+  createUsdtPayout: (req) => request('POST', '/api/usdt-withdrawals', userAuth(), req),
+  usdtPayout: (id) => request('GET', `/api/usdt-withdrawals/${id}`, userAuth()),
   dealReceived: (id) => request('POST', `/api/withdrawals/${id}/received`, userAuth(), {}),
   dealNotReceived: (id) => request('POST', `/api/withdrawals/${id}/not-received`, userAuth(), {}),
   dealOtherAmount: (id, amountRub) => request('POST', `/api/withdrawals/${id}/other-amount`, userAuth(), { amountRub }),
@@ -219,6 +230,9 @@ export function httpAdminApi(token: string): AdminApi {
     orderNote: (id, text) => post(`/orders/${id}/note`, { text }),
     deposits: (status) => request('GET', `/api/admin/deposits?status=${status}`, auth),
     depositCredit: (id, note, userId) => post(`/deposits/${id}/credit`, { note, userId }),
+    usdtPayouts: (status) => request('GET', `/api/admin/usdt-withdrawals?status=${status}`, auth),
+    usdtPayoutSent: (id, txId, force, note) => post(`/usdt-withdrawals/${id}/sent`, { txId, force, note }),
+    usdtPayoutReject: (id, reason) => post(`/usdt-withdrawals/${id}/reject`, { reason }),
     depositPool: () => request('GET', '/api/admin/deposit-pool', auth),
     depositPoolAdd: (address, label, own) => post('/deposit-pool', { address, label, own }),
     depositPoolUpdate: (id, patch) => post(`/deposit-pool/${id}`, patch),

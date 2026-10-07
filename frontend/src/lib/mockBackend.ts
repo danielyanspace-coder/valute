@@ -3,6 +3,8 @@
 // included, can be clicked through without a server or Telegram.
 import type {
   AdminDepositAddressDto,
+  AdminUsdtPayoutDto,
+  UsdtPayoutDto,
   AdminDepositCounts,
   DepositInfoDto,
   DepositRequestDto,
@@ -27,6 +29,7 @@ import {
   USDT_MICRO,
 } from '../../../shared/payout';
 import { findBank } from '../../../shared/sbpBanks';
+import { validateUsdtPayout, type UsdtPayoutStatus } from '../../../shared/usdtPayout';
 import { DEPOSIT_QUARANTINE_MS, DEPOSIT_REQUEST_TTL_MS, type DepositRequestStatus } from '../../../shared/deposits';
 import { checkLink, cleanComment, isValidUsername, normalizeUsername, parseUsdt } from '../../../shared/transfers';
 import {
@@ -154,7 +157,6 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
   });
   addDeposit(null, 75, 'held', t0 - 3 * HOUR, { review: 'linked_sender', issuedToId: null });
   addDeposit(null, 40, 'held', t0 - 5 * HOUR, { review: 'unidentified', issuedToId: null, fromAddress: 'TXa1bQ9cR8dS7eT6fU5gV4hW3iX2jY1kZm' });
-  addDeposit(1, 4, 'below_min', t0 - 2 * DAY);
   const depositDto = (d: MockDeposit): DepositDto => ({
     id: d.id, status: d.status === 'failed' ? 'rejected' : d.status, amountMicro: d.amountMicro, network: 'TRC20', txId: d.txId,
     fromAddress: d.fromAddress, createdAt: d.createdAt, creditedAt: d.status === 'credited' ? d.finishedAt : null,
@@ -198,7 +200,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
     const show = r && r.status !== 'cancelled' && (r.status === 'active' || (r.endedAt ?? 0) > now() - 10 * MIN);
     return {
       token: 'USDT', network: 'TRC20', networkName: 'TRON (TRC-20)', enabled: pool.some((p) => p.enabled && !p.own),
-      request: show ? requestDto(r) : null, minDepositMicro: 10 * USDT_MICRO, confirmations: 20, demo: true,
+      request: show ? requestDto(r) : null, minDepositMicro: 0, confirmations: 20, demo: true,
     };
   };
   let demoDepositSent = false;
@@ -231,6 +233,29 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       };
     });
   };
+
+  // USDT TRC-20 withdrawals: the demo operator "sends" them from the admin panel.
+  const USDT_FEE = 5 * USDT_MICRO;
+  const USDT_MIN = 10 * USDT_MICRO;
+  interface MockPayout { id: number; userId: number; requestId: string; address: string; amountMicro: number; status: UsdtPayoutStatus; txId: string | null; rejectReason: string | null; adminNote: string | null; balanceBefore: number; createdAt: number; finishedAt: number | null }
+  const payouts: MockPayout[] = [];
+  let payoutId = 1;
+  const payoutDto = (p: MockPayout): UsdtPayoutDto => ({
+    id: p.id, address: p.address, amountMicro: p.amountMicro, feeMicro: USDT_FEE, totalMicro: p.amountMicro + USDT_FEE, status: p.status,
+    txId: p.txId, rejectReason: p.rejectReason, createdAt: p.createdAt, finishedAt: p.finishedAt,
+  });
+  const payoutAdmin = (p: MockPayout): AdminUsdtPayoutDto => ({
+    ...payoutDto(p), user: userRef(p.userId)!, amlDecision: 'clear', amlSignals: [{ source: 'tether_blacklist', hit: false }, { source: 'ofac_sdn', hit: false }],
+    adminNote: p.adminNote, balanceBeforeMicro: p.balanceBefore,
+    sameAddressBefore: payouts.filter((x) => x.id !== p.id && x.userId === p.userId && x.address === p.address && x.status === 'sent').length,
+  });
+  payouts.push(
+    { id: payoutId++, userId: 1, requestId: 'seed1', address: 'TJRabPrwbZy45sbavfcjinPJC18kjpRTv8', amountMicro: 120 * USDT_MICRO, status: 'sent', txId: 'b'.repeat(64), rejectReason: null, adminNote: null, balanceBefore: 500 * USDT_MICRO, createdAt: t0 - 9 * DAY, finishedAt: t0 - 9 * DAY + 25 * MIN },
+    { id: payoutId++, userId: 7, requestId: 'seed2', address: 'TLa2f6VPqDgRE67v1736s7bJ8Ray5wYjU7', amountMicro: 300 * USDT_MICRO, status: 'new', txId: null, rejectReason: null, adminNote: null, balanceBefore: 1500 * USDT_MICRO, createdAt: t0 - 7 * MIN, finishedAt: null },
+  );
+  const payoutUser = (p: MockPayout) => users.find((u) => u.id === p.userId)!;
+  users.find((u) => u.id === 7)!.availableMicro -= 305 * USDT_MICRO;
+  users.find((u) => u.id === 7)!.frozenMicro += 305 * USDT_MICRO;
 
   const user = (id: number) => users.find((u) => u.id === id) ?? fail(404, 'Пользователь не найден');
 
@@ -271,7 +296,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
     activeChecks: (id) => checks.filter((c) => c.creatorId === id && c.status === 'active').reduce((a, c) => a + c.amountMicro, 0),
   });
   const adminUser = engine.adminUser;
-  const { contactLock, assertNotLocked } = engine;
+  const { contactLock, assertNotLocked, answerLock } = engine;
   seedDeals(engine, users, t0, snapshot.rate.walletRate);
 
   const me = users[0];
@@ -325,6 +350,8 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
         user: { id: me.id, telegramId: me.telegramId, username: me.username, firstName: me.firstName, lastName: me.lastName, photoUrl: null },
         availableMicro: me.availableMicro, frozenMicro: me.frozenMicro, blocked: me.blocked, supportUsername: 'cryptoix_support',
         contactLock: contactLock(me.id),
+        answerLock: answerLock(me.id),
+        usdtPayout: { feeMicro: USDT_FEE, minMicro: USDT_MIN },
         botUsername: BOT,
         stats: {
           exchanges: engine.deals.filter((w) => w.userId === me.id && w.status === 'completed').length,
@@ -339,6 +366,28 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       return delay(engine.userDto(w));
     },
     createWithdrawal: (req) => delay(engine.userDto(engine.create(me, req))),
+    createUsdtPayout: (req) => {
+      const dup = payouts.find((p) => p.userId === me.id && p.requestId === req.requestId);
+      if (dup) return delay(payoutDto(dup));
+      if (me.blocked) fail(403, 'Вывод недоступен. Свяжитесь с поддержкой');
+      assertNotLocked(me.id);
+      const address = req.address.trim();
+      if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(address)) fail(400, 'Это не адрес TRON. Он начинается на T и состоит из 34 символов');
+      if (pool.some((x) => x.address === address)) fail(400, 'Это адрес пополнения Crypto IX. Укажите адрес своего кошелька или биржи');
+      const amount = parseUsdt(req.amount);
+      if (typeof amount === 'string') fail(400, amount);
+      const err = validateUsdtPayout(amount as number, me.availableMicro, USDT_FEE, USDT_MIN);
+      if (err) fail(400, err);
+      const p: MockPayout = { id: payoutId++, userId: me.id, requestId: req.requestId, address, amountMicro: amount as number, status: 'new', txId: null, rejectReason: null, adminNote: null, balanceBefore: me.availableMicro, createdAt: now(), finishedAt: null };
+      payouts.push(p);
+      me.availableMicro -= p.amountMicro + USDT_FEE;
+      me.frozenMicro += p.amountMicro + USDT_FEE;
+      return delay(payoutDto(p));
+    },
+    usdtPayout: (id) => {
+      const p = payouts.find((x) => x.id === id && x.userId === me.id) ?? fail(404, 'Заявка не найдена');
+      return delay(payoutDto(p));
+    },
     dealReceived: (id) => delay(engine.userDto(engine.userReceived(me.id, id))),
     dealNotReceived: (id) => delay(engine.userDto(engine.userNotReceived(me.id, id))),
     dealOtherAmount: (id, rub) => delay(engine.userDto(engine.userOtherAmount(me.id, id, rub))),
@@ -346,7 +395,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       delay({
         items: notifications
           .filter((n) => n.userId === me.id && !n.seen)
-          .map(({ id, type, withdrawalId, createdAt, transfer, check, order, deposit, deduction }) => ({ id, type, withdrawalId, createdAt, transfer, check, order, deposit, deduction })),
+          .map(({ id, type, withdrawalId, createdAt, transfer, check, order, deposit, deduction, usdtPayout }) => ({ id, type, withdrawalId, createdAt, transfer, check, order, deposit, deduction, usdtPayout })),
       }),
     markNotificationsSeen: (ids) => {
       for (const n of notifications) if (ids.includes(n.id)) n.seen = true;
@@ -361,12 +410,14 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
           .map((t): HistoryItem => ({ type: 'transfer', at: t.createdAt, transfer: transferDto(t, me.id) })),
         ...checks.filter((c) => c.creatorId === me.id).map((c): HistoryItem => ({ type: 'check', at: c.createdAt, check: checkDto(c) })),
         ...orders.filter((o) => o.userId === me.id).map((o): HistoryItem => ({ type: 'order', at: o.createdAt, order: orderDto(o) })),
+        ...payouts.filter((p) => p.userId === me.id).map((p): HistoryItem => ({ type: 'usdt_payout', at: p.createdAt, usdtPayout: payoutDto(p) })),
         ...deposits.filter((d) => d.userId === me.id && d.status !== 'failed').map((d): HistoryItem => ({ type: 'deposit', at: d.createdAt, deposit: depositDto(d) })),
       ];
       return delay({ items: items.sort((a, b) => b.at - a.at) });
     },
     deposit: () => delay(depositInfo(me.id)),
     depositOpen: () => {
+      assertNotLocked(me.id);
       expireRequests();
       if (requests.some((r) => r.userId === me.id && r.status === 'active')) fail(409, 'Сначала отмените текущую заявку');
       const mine = pool.find((p) => { const l = lastOn(p.address); return p.enabled && !p.own && l && l.r.userId === me.id && l.r.status !== 'active' && l.freeAt > now(); });
@@ -547,6 +598,36 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       return delay({ items, counts: c, enabled: pool.some((p) => p.enabled && !p.own) });
     },
     depositPool: () => delay({ items: poolList() }),
+    usdtPayouts: (status) => {
+      const items = payouts.filter((p) => status === 'all' || p.status === status);
+      if (status !== 'new') items.reverse();
+      const c = { new: 0, sent: 0, rejected: 0 };
+      for (const p of payouts) c[p.status]++;
+      return delay({ items: items.map(payoutAdmin), counts: c });
+    },
+    usdtPayoutSent: (id, txIdRaw, force) => {
+      const txId = txIdRaw.trim().toLowerCase();
+      if (!/^[0-9a-f]{64}$/.test(txId)) fail(400, 'Хэш транзакции: 64 символа 0-9 и a-f. Скопируйте его из TronLink или Tronscan');
+      const p = payouts.find((x) => x.id === id) ?? fail(404, 'Заявка не найдена');
+      if (p.status !== 'new') fail(409, 'Заявка уже обработана');
+      const used = payouts.find((x) => x.txId === txId);
+      if (used) fail(409, `Этот хэш уже указан в заявке №${used.id}`);
+      Object.assign(p, { status: 'sent', txId, finishedAt: now(), adminNote: force ? 'без проверки в сети' : null });
+      payoutUser(p).frozenMicro -= p.amountMicro + USDT_FEE;
+      notify(p.userId, 'usdt_payout_sent', null, { usdtPayout: payoutDto(p) });
+      return delay(payoutAdmin(p));
+    },
+    usdtPayoutReject: (id, reason) => {
+      if (!reason.trim()) fail(400, 'Укажите причину, её увидит клиент');
+      const p = payouts.find((x) => x.id === id) ?? fail(404, 'Заявка не найдена');
+      if (p.status !== 'new') fail(409, 'Заявка уже обработана');
+      Object.assign(p, { status: 'rejected', rejectReason: reason.trim(), finishedAt: now() });
+      const u = payoutUser(p);
+      u.frozenMicro -= p.amountMicro + USDT_FEE;
+      u.availableMicro += p.amountMicro + USDT_FEE;
+      notify(p.userId, 'usdt_payout_rejected', null, { usdtPayout: payoutDto(p) });
+      return delay(payoutAdmin(p));
+    },
     depositPoolAdd: (address, label, own) => {
       const a = address.trim();
       if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(a)) fail(400, 'Это не адрес TRON. Он начинается на T и состоит из 34 символов');
