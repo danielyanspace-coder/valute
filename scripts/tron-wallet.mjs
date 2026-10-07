@@ -42,7 +42,8 @@ function printXpub(xpub) {
   console.log(`TRON_XPUB=${xpub}\n`);
   console.log('First deposit addresses (user #1, #2, #3 will get these):');
   printAddresses(xpub, 3);
-  console.log('\nCheck: import the seed into TronLink, address #0 must be the same.\n');
+  console.log('\nCheck: run "node scripts/tron-wallet.mjs xpub", type the words from paper, addresses must match.');
+  console.log('Never import this seed into TronLink, Trust or any online wallet.\n');
 }
 
 const [cmd, arg, count] = process.argv.slice(2);
