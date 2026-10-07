@@ -17,7 +17,6 @@ import { renderCheckJpeg } from './checks/checkImage.js';
 import type { TransferService } from './transfers/transferService.js';
 import type { OrderService } from './orders/orderService.js';
 import type { FineLookup } from './orders/fineLookup.js';
-import type { DepositAddressService } from './deposits/depositAddressService.js';
 import type { DepositService } from './deposits/depositService.js';
 import type { AuditLog } from './audit/auditLog.js';
 import type { ObligationService } from './obligations/obligationService.js';
@@ -40,8 +39,7 @@ export interface AppDeps {
   allowDevAuth: boolean;
   supportUsername: string;
   depositMinUsdt: number;
-  depositAddresses: DepositAddressService | null;
-  deposits: DepositService | null;
+  deposits: DepositService;
   audit: AuditLog;
   obligations: ObligationService;
   broadcasts: BroadcastService;
@@ -54,7 +52,7 @@ export function buildApp(deps: AppDeps) {
   app.register(cors);
 
   app.setErrorHandler((err, req, reply) => {
-    if (err instanceof AppError) return reply.code(err.status).send({ error: err.code, message: err.message });
+    if (err instanceof AppError) return reply.code(err.status).send({ error: err.code, message: err.message, ...err.extra });
     if ((err as { validation?: unknown }).validation) return reply.code(400).send({ error: 'bad_request', message: (err as Error).message });
     req.log.error(err);
     return reply.code(500).send({ error: 'internal', message: 'Что-то пошло не так, попробуйте ещё раз' });

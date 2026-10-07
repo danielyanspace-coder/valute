@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import type { AdminDepositCounts, AdminDepositDto } from '../../../shared/api';
+import type { AdminDepositCounts, AdminDepositDto, AdminUserRef } from '../../../shared/api';
+import { DEPOSIT_REVIEW_TEXT } from '../../../shared/deposits';
 import type { AdminApi } from '../lib/api';
+import { DepositPool } from './DepositPool';
 import { fmtAgo, fmtDateTime, fmtMicroExact } from '../lib/format';
 import { usePolling } from '../lib/useInterval';
 import { Card, ContactClient, Row, TwoStep } from './ui';
 
-type Filter = keyof AdminDepositCounts | 'all';
+type Filter = keyof AdminDepositCounts | 'all' | 'pool';
 
 const TABS: { id: Filter; label: string }[] = [
   { id: 'held', label: 'На проверке' },
@@ -14,7 +16,10 @@ const TABS: { id: Filter; label: string }[] = [
   { id: 'credited', label: 'Зачислены' },
   { id: 'rejected', label: 'Отклонены' },
   { id: 'all', label: 'Все' },
+  { id: 'pool', label: 'Адреса' },
 ];
+
+const who = (u: AdminUserRef) => (u.username ? `@${u.username}` : `${u.firstName} (ID ${u.id})`);
 
 const STATUS: Record<AdminDepositDto['status'], { label: string; bg: string; fg: string }> = {
   held: { label: 'На проверке', bg: 'rgba(255, 93, 108, 0.14)', fg: '#ff8d98' },
@@ -49,6 +54,7 @@ export function DepositsPanel({ api, top }: { api: AdminApi; top: ReactNode }) {
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(() => {
+    if (filter === 'pool') return;
     api.deposits(filter).then(
       (r) => {
         setItems(r.items);
@@ -69,7 +75,7 @@ export function DepositsPanel({ api, top }: { api: AdminApi; top: ReactNode }) {
       {top}
       <nav className="adm-tabs">
         {TABS.map((t) => {
-          const n = t.id === 'all' || !counts ? null : counts[t.id];
+          const n = t.id === 'all' || t.id === 'pool' || !counts ? null : counts[t.id];
           return (
             <button key={t.id} className={`adm-tab ${filter === t.id ? 'active' : ''}`} onClick={() => { setFilter(t.id); setSelected(null); setItems([]); }}>
               {t.label}
@@ -78,8 +84,13 @@ export function DepositsPanel({ api, top }: { api: AdminApi; top: ReactNode }) {
           );
         })}
       </nav>
-      {!enabled && <div className="adm-banner info" style={{ marginTop: 12 }}>Пополнения не включены: на сервере не задан TRON_XPUB.</div>}
+      {!enabled && filter !== 'pool' && (
+        <div className="adm-banner info" style={{ marginTop: 12 }}>
+          Пополнения выключены: нет ни одного включённого адреса. Добавьте адреса во вкладке «Адреса».
+        </div>
+      )}
       {loadError && <div className="adm-error">{loadError}</div>}
+      {filter === 'pool' ? <DepositPool api={api} /> : (
       <div className={`adm-body ${current ? 'has-detail' : ''}`}>
         <section className="adm-list">
           {items.length === 0 && <div className="adm-empty">Пополнений нет</div>}
@@ -92,9 +103,11 @@ export function DepositsPanel({ api, top }: { api: AdminApi; top: ReactNode }) {
               </div>
               <div className="adm-row-amount">+{fmtMicroExact(d.amountMicro)}</div>
               <div className="adm-row-sub">
-                {d.user.username ? `@${d.user.username}` : d.user.firstName} · от {d.fromAddress ? short(d.fromAddress) : 'неизвестно'}
+                {d.user ? who(d.user) : 'Не определён'} · от {d.fromAddress ? short(d.fromAddress) : 'неизвестно'}
               </div>
+              {d.status === 'held' && d.review && d.review !== 'aml' && <div className="adm-row-sub adm-warn-text">{DEPOSIT_REVIEW_TEXT[d.review]}</div>}
               {d.amlDecision === 'reject' && <div className="adm-row-sub adm-warn-text">AML: адрес отправителя в чёрном списке</div>}
+              {d.late && <div className="adm-row-sub">Пришло после окончания заявки</div>}
             </button>
           ))}
         </section>
@@ -102,6 +115,7 @@ export function DepositsPanel({ api, top }: { api: AdminApi; top: ReactNode }) {
           {current ? <DepositDetail key={current.id} api={api} d={current} onBack={() => setSelected(null)} onChanged={load} /> : <div className="adm-empty">Выберите пополнение слева</div>}
         </section>
       </div>
+      )}
     </div>
   );
 }
@@ -112,6 +126,11 @@ function DepositDetail({ api, d, onBack, onChanged }: { api: AdminApi; d: AdminD
   const [rejecting, setRejecting] = useState(false);
   const [reason, setReason] = useState('');
   const open = d.status === 'held' || d.status === 'below_min';
+  // Who the money can go to: the current owner, the address holder, and accounts this wallet topped up.
+  const candidates = [d.user, d.issuedTo, ...d.senderUsers].filter((u, i, all): u is AdminUserRef => !!u && all.findIndex((x) => x?.id === u.id) === i);
+  const [target, setTarget] = useState<string>(candidates[0] ? String(candidates[0].id) : '');
+  const targetId = Number(target) || 0;
+  const targetUser = candidates.find((u) => u.id === targetId);
 
   const act = async (fn: () => Promise<AdminDepositDto>) => {
     setBusy(true);
@@ -128,6 +147,8 @@ function DepositDetail({ api, d, onBack, onChanged }: { api: AdminApi; d: AdminD
     }
   };
 
+  const senders = d.senderUsers.map(who).join(', ');
+
   return (
     <div className="adm-d">
       <button className="adm-link adm-back" onClick={onBack}>← К списку</button>
@@ -141,48 +162,89 @@ function DepositDetail({ api, d, onBack, onChanged }: { api: AdminApi; d: AdminD
         <div className="adm-muted">Отправлено {fmtDateTime(d.createdAt)} ({fmtAgo(d.createdAt)})</div>
       </div>
 
-      {d.status === 'held' && d.amlDecision === 'reject' && (
+      {d.status === 'held' && d.review === 'aml' && d.amlDecision === 'reject' && (
         <div className="adm-banner danger">
           <b>Адрес отправителя найден в чёрном списке.</b>
           <span>Не зачисляйте и не переводите эти USDT дальше: Tether может заморозить адрес. Свяжитесь с клиентом и выясните источник.</span>
         </div>
       )}
-      {d.status === 'held' && d.amlDecision !== 'reject' && (
+      {d.status === 'held' && d.review === 'aml' && d.amlDecision !== 'reject' && (
         <div className="adm-banner info">AML-проверка не смогла выполниться. Проверьте отправителя вручную (кнопка «Открыть в Tronscan») и решите.</div>
+      )}
+      {d.status === 'held' && d.review === 'unidentified' && (
+        <div className="adm-banner info">
+          <b>Неопознанный платёж.</b>
+          <span>В момент перевода адрес ни за кем не был закреплён, и с этого кошелька раньше никто не пополнял{d.senderUsers.length > 1 ? ' (или пополняли несколько человек, это похоже на биржу)' : ''}. Дождитесь, пока клиент напишет в поддержку с хэшем, и зачислите ему.</span>
+        </div>
+      )}
+      {d.status === 'held' && d.review === 'linked_sender' && (
+        <div className="adm-banner info">
+          <b>Связь с аккаунтом: {senders}.</b>
+          <span>Адрес в этот момент никому не выдавался, но с этого кошелька раньше пополнял {senders}. Скорее всего, клиент отправил на старый адрес без заявки. Уточните у него и зачислите.</span>
+        </div>
+      )}
+      {d.status === 'held' && d.review === 'sender_conflict' && (
+        <div className="adm-banner info">
+          <b>Адрес был выдан {d.issuedTo ? who(d.issuedTo) : 'другому клиенту'}, но кошелёк отправителя принадлежит {senders}.</b>
+          <span>Возможно, один клиент отправил на адрес, который сейчас закреплён за другим, или это общий кошелёк. Свяжитесь с обоими и решите, кому зачислить.</span>
+        </div>
       )}
       {d.status === 'below_min' && <div className="adm-banner info">Сумма меньше минимальной, поэтому не зачислена автоматически. Можно зачислить вручную.</div>}
       {d.status === 'credited' && (
-        <div className="adm-banner ok">Зачислено {d.finishedAt ? fmtDateTime(d.finishedAt) : ''} {d.creditedBy === 'admin' ? 'вручную' : 'автоматически'}</div>
+        <div className="adm-banner ok">
+          Зачислено {d.finishedAt ? fmtDateTime(d.finishedAt) : ''} {d.creditedBy === 'admin' ? 'вручную' : 'автоматически'}
+          {d.user ? ` · ${who(d.user)}` : ''}
+          {d.late ? '. Пришло после окончания заявки, во время карантина адреса' : ''}
+        </div>
       )}
       {d.status === 'rejected' && <div className="adm-banner">Отклонено: {d.adminNote}</div>}
 
+      {open && (
+        <div className="adm-card dep-credit">
+          <div className="adm-card-title">Кому зачислить</div>
+          {candidates.length > 0 && (
+            <div className="dep-cands">
+              {candidates.map((u) => (
+                <button key={u.id} className={`dep-cand ${targetId === u.id ? 'active' : ''}`} onClick={() => setTarget(String(u.id))}>
+                  {who(u)}
+                  <span>{u.id === d.issuedTo?.id ? 'получил этот адрес' : d.senderUsers.some((x) => x.id === u.id) ? 'пополнял с этого кошелька' : 'владелец'}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <label className="dep-target">
+            <span>ID пользователя</span>
+            <input id="deposit-user" inputMode="numeric" placeholder="Например, 42" value={target} onChange={(e) => setTarget(e.target.value.replace(/\D/g, ''))} />
+          </label>
+          <div className="adm-muted small">ID есть в карточке пользователя в разделе «Пользователи».</div>
+          <div className="adm-actions">
+            <TwoStep
+              label="Зачислить"
+              confirm={`Зачислить ${fmtMicroExact(d.amountMicro)} ${targetUser ? who(targetUser) : `пользователю ID ${targetId}`}?`}
+              tone="success"
+              busy={busy || !targetId}
+              onConfirm={() => act(() => api.depositCredit(d.id, d.status === 'below_min' ? 'меньше минимума, зачислено вручную' : 'проверено вручную', targetId))}
+            />
+            <button className="adm-btn danger-ghost" disabled={busy} onClick={() => setRejecting(true)}>Отклонить</button>
+          </div>
+          {rejecting && (
+            <div className="adm-inline">
+              <input id="deposit-reason" placeholder="Причина, для истории" value={reason} onChange={(e) => setReason(e.target.value)} />
+              <button className="adm-btn danger" disabled={busy || !reason.trim()} onClick={async () => (await act(() => api.depositReject(d.id, reason))) && setRejecting(false)}>
+                Отклонить
+              </button>
+              <button className="adm-link" onClick={() => setRejecting(false)}>Отмена</button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="adm-actions">
-        <ContactClient user={d.user} />
+        {d.user && <ContactClient user={d.user} />}
         <a className="adm-btn" style={{ display: 'inline-flex', alignItems: 'center', textDecoration: 'none' }} href={tronscan('transaction', d.txId)} target="_blank" rel="noreferrer">
           Открыть в Tronscan
         </a>
-        {open && (
-          <>
-            <TwoStep
-              label="Зачислить"
-              confirm={`Зачислить ${fmtMicroExact(d.amountMicro)} на баланс клиента?`}
-              tone="success"
-              busy={busy}
-              onConfirm={() => act(() => api.depositCredit(d.id, d.status === 'below_min' ? 'меньше минимума, зачислено вручную' : 'проверено вручную'))}
-            />
-            <button className="adm-btn danger-ghost" disabled={busy} onClick={() => setRejecting(true)}>Отклонить</button>
-          </>
-        )}
       </div>
-      {rejecting && open && (
-        <div className="adm-inline">
-          <input id="deposit-reason" placeholder="Причина, для истории" value={reason} onChange={(e) => setReason(e.target.value)} />
-          <button className="adm-btn danger" disabled={busy || !reason.trim()} onClick={async () => (await act(() => api.depositReject(d.id, reason))) && setRejecting(false)}>
-            Отклонить
-          </button>
-          <button className="adm-link" onClick={() => setRejecting(false)}>Отмена</button>
-        </div>
-      )}
       {error && <div className="adm-error">{error}</div>}
 
       <div className="adm-grid">
@@ -190,10 +252,17 @@ function DepositDetail({ api, d, onBack, onChanged }: { api: AdminApi; d: AdminD
           <Row k="Сумма" v={fmtMicroExact(d.amountMicro)} big />
           <Row k="Хэш" v={d.txId} copy={d.txId} mono />
           <Row k="Отправитель" v={d.fromAddress ?? 'Неизвестно'} copy={d.fromAddress ?? undefined} mono />
-          <Row k="Адрес клиента" v={d.address} copy={d.address} mono />
+          <Row k="Наш адрес" v={d.address} copy={d.address} mono />
           {d.blockNumber && <Row k="Блок" v={String(d.blockNumber)} />}
           <Row k="Подтверждено" v={d.confirmedAt ? fmtDateTime(d.confirmedAt) : 'Ещё нет'} />
           {d.adminNote && d.status !== 'rejected' && <Row k="Заметка" v={d.adminNote} />}
+        </Card>
+
+        <Card title="Чей платёж">
+          <Row k="Адрес был выдан" v={d.issuedTo ? who(d.issuedTo) : 'Никому'} sub={d.requestId ? `Заявка №${d.requestId}${d.late ? ', после её окончания' : ''}` : undefined} />
+          <Row k="Кошелёк пополнял" v={d.senderUsers.length ? senders : 'Никого'} tone={d.review === 'sender_conflict' ? 'warn' : undefined} />
+          <Row k="Зачисляется" v={d.user ? who(d.user) : 'Не определён'} tone={d.user ? undefined : 'warn'} />
+          {d.user && <Row k="Telegram ID" v={String(d.user.telegramId)} copy={String(d.user.telegramId)} />}
         </Card>
 
         <Card title="AML-проверка отправителя">
@@ -207,12 +276,6 @@ function DepositDetail({ api, d, onBack, onChanged }: { api: AdminApi; d: AdminD
               tone={s.error ? 'warn' : s.hit ? 'danger' : 'ok'}
             />
           ))}
-        </Card>
-
-        <Card title="Пользователь">
-          <Row k="Имя" v={d.user.firstName} />
-          <Row k="Username" v={d.user.username ? `@${d.user.username}` : 'Скрыт'} tone={d.user.username ? undefined : 'warn'} />
-          <Row k="Telegram ID" v={String(d.user.telegramId)} copy={String(d.user.telegramId)} />
         </Card>
       </div>
     </div>

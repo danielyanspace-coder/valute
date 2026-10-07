@@ -2,7 +2,10 @@
 // Mirrors the server rules (shared/payout.ts) so the whole flow, admin side
 // included, can be clicked through without a server or Telegram.
 import type {
+  AdminDepositAddressDto,
   AdminDepositCounts,
+  DepositInfoDto,
+  DepositRequestDto,
   AdminDepositDto,
   DepositDto,
   AdminOrderCounts,
@@ -24,6 +27,7 @@ import {
   USDT_MICRO,
 } from '../../../shared/payout';
 import { findBank } from '../../../shared/sbpBanks';
+import { DEPOSIT_QUARANTINE_MS, DEPOSIT_REQUEST_TTL_MS, type DepositRequestStatus } from '../../../shared/deposits';
 import { checkLink, cleanComment, isValidUsername, normalizeUsername, parseUsdt } from '../../../shared/transfers';
 import {
   SERVICE_TITLE, STEAM_MAX_RUB, STEAM_MIN_RUB, MAX_PARKING_RUB, MIN_PARKING_RUB, fineDueRub, formatParkingPhone, nextOrderStatus,
@@ -39,6 +43,8 @@ type MockUser = DemoUser;
 const fail = (status: number, message: string): never => {
   throw new ApiError(status, 'demo', message);
 };
+const SENDER_ANN = 'TJW8kqZ3vHcN1mP6sYb2XgD9fJ4tLa7uEe';
+const SENDER_IVAN = 'TKr8wqZ3vHcN1mP6sYb2XgD9fJ4tLa7uEe';
 const delay = <T>(v: T) => new Promise<T>((r) => setTimeout(() => r(structuredClone(v)), 180));
 const MIN = 60_000;
 const HOUR = 60 * MIN;
@@ -55,20 +61,18 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       id: 1, telegramId: 5_210_448_301, username: 'darkfox_ix', firstName: 'DarkFox', lastName: null, languageCode: 'ru',
       createdAt: t0 - 21 * DAY, lastSeenAt: t0, blocked: false, missedConfirmations: 0, supportLockedAt: null, botBlockedAt: null,
       availableMicro: 250 * USDT_MICRO, frozenMicro: 0, depositedMicro: 400 * USDT_MICRO,
-      addresses: [
-        { chain: 'TRON', address: 'TQ5NvbPLn7fGQyw3UDcPzC9nK8m2Xh4aRd', createdAt: t0 - 20 * DAY },
-      ],
+      senderWallets: [{ address: SENDER_ANN, deposits: 2, lastAt: t0 - 6 * DAY }],
     },
     {
       id: 2, telegramId: 6_031_877_412, username: null, firstName: 'Иван', lastName: 'К.', languageCode: 'ru',
       createdAt: t0 - 4 * DAY, lastSeenAt: t0 - 12 * MIN, blocked: false, missedConfirmations: 2, supportLockedAt: null, botBlockedAt: null,
       availableMicro: 31_500_000, frozenMicro: 0, depositedMicro: 220 * USDT_MICRO,
-      addresses: [{ chain: 'TRON', address: 'TKr8wqZ3vHcN1mP6sYb2XgD9fJ4tLa7uEe', createdAt: t0 - 4 * DAY }],
+      senderWallets: [{ address: SENDER_IVAN, deposits: 1, lastAt: t0 - 4 * DAY }],
     },
     {
       id: 3, telegramId: 7_114_902_518, username: 'masha_k', firstName: 'Маша', lastName: null, languageCode: 'ru',
       createdAt: t0 - 11 * DAY, lastSeenAt: t0 - 3 * MIN, blocked: false, missedConfirmations: 0, supportLockedAt: null, botBlockedAt: null,
-      availableMicro: 74 * USDT_MICRO, frozenMicro: 0, depositedMicro: 120 * USDT_MICRO, addresses: [],
+      availableMicro: 74 * USDT_MICRO, frozenMicro: 0, depositedMicro: 120 * USDT_MICRO, senderWallets: [],
     },
     ...([
       [4, 'alex_trade', 'Алексей', 900, 0, null],
@@ -81,7 +85,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       id, telegramId: 6_100_000_000 + id * 7919, username, firstName, lastName: null, languageCode: 'ru',
       createdAt: t0 - (id * 3) * DAY, lastSeenAt: t0 - id * MIN, blocked: false, missedConfirmations: missed,
       supportLockedAt: null, botBlockedAt: flag === 'bot' ? t0 - DAY : null,
-      availableMicro: usdt * USDT_MICRO, frozenMicro: 0, depositedMicro: usdt * USDT_MICRO, addresses: [],
+      availableMicro: usdt * USDT_MICRO, frozenMicro: 0, depositedMicro: usdt * USDT_MICRO, senderWallets: [],
     })),
   ];
   interface MockCheck { id: number; code: string; creatorId: number; amountMicro: number; comment: string | null; status: CheckDto['status']; createdAt: number; claimedBy: number | null; claimedAt: number | null }
@@ -113,65 +117,119 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
   let transferId = 1;
   let checkId = 1;
 
-  // Deposits: seeded history plus one simulated incoming transfer after the deposit screen is opened.
-  type MockDeposit = Omit<AdminDepositDto, 'user'> & { userId: number };
+  // Deposits: a pool of 10 addresses lent per request, seeded history, and one simulated
+  // incoming transfer a few seconds after the demo user asks for an address.
+  // Deliberately invalid addresses (contain 0 and O, which TRON never has): no wallet will accept them.
+  const pool: { id: number; address: string; label: string; enabled: boolean; own: boolean; createdAt: number }[] = Array.from({ length: 10 }, (_, i) => ({
+    id: i + 1, address: `T0DEM0ADDRESS0NOT0REAL0O000000000${i}`, label: `Аккаунт ${i + 1}`, enabled: true, own: false, createdAt: t0 - 30 * DAY,
+  }));
+  pool.push({ id: 11, address: 'T0DEM0MAIN0WALLET0NOT0REAL0O00000', label: 'Основной', enabled: true, own: true, createdAt: t0 - 30 * DAY });
+  let poolId = 12;
+  interface MockRequest { id: number; userId: number; address: string; status: DepositRequestStatus; createdAt: number; expiresAt: number; endedAt: number | null }
+  const requests: MockRequest[] = [];
+  let requestId = 1;
+  type MockDeposit = Omit<AdminDepositDto, 'user' | 'issuedTo' | 'senderUsers'> & { userId: number | null; issuedToId: number | null };
   const deposits: MockDeposit[] = [];
   let depositId = 1;
-  const addDeposit = (userId: number, amountUsdt: number, status: MockDeposit['status'], at: number, extra: Partial<MockDeposit> = {}): MockDeposit => {
+  const addDeposit = (userId: number | null, amountUsdt: number, status: MockDeposit['status'], at: number, extra: Partial<MockDeposit> = {}): MockDeposit => {
     const hex = (n: number) => Array.from({ length: n }, () => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('');
     const d: MockDeposit = {
-      id: depositId++, userId, status, amountMicro: Math.round(amountUsdt * USDT_MICRO),
-      address: users.find((u) => u.id === userId)?.addresses[0]?.address ?? 'T', txId: hex(64),
-      fromAddress: 'TJ' + 'W8kqZ3vHcN1mP6sYb2XgD9fJ4tLa7u', amlDecision: status === 'pending' ? null : 'clear',
+      id: depositId++, userId, issuedToId: userId, status, amountMicro: Math.round(amountUsdt * USDT_MICRO),
+      address: pool[(depositId * 3) % 10].address, txId: hex(64),
+      fromAddress: userId === 2 ? SENDER_IVAN : SENDER_ANN, amlDecision: status === 'pending' ? null : 'clear',
       amlSignals: status === 'pending' ? [] : [{ source: 'tether_blacklist', hit: false }, { source: 'ofac_sdn', hit: false }],
       blockNumber: 86_800_000 + depositId * 1000, createdAt: at, confirmedAt: status === 'pending' ? null : at + MIN,
       finishedAt: status === 'credited' || status === 'rejected' || status === 'below_min' ? at + MIN : null,
-      creditedBy: status === 'credited' ? 'auto' : null, adminNote: null, ...extra,
+      creditedBy: status === 'credited' ? 'auto' : null, adminNote: null, review: null, late: false, requestId: null, ...extra,
     };
     deposits.push(d);
     return d;
   };
   addDeposit(1, 300, 'credited', t0 - 19 * DAY);
-  addDeposit(1, 100, 'credited', t0 - 6 * DAY);
+  addDeposit(1, 100, 'credited', t0 - 6 * DAY, { late: true });
   addDeposit(2, 220, 'credited', t0 - 4 * DAY + HOUR);
   addDeposit(2, 150, 'held', t0 - 35 * MIN, {
-    fromAddress: 'TNXoiAJ3dct8Fjg4M9fkLFh9S2v9TXc32G', amlDecision: 'reject',
+    fromAddress: 'TNXoiAJ3dct8Fjg4M9fkLFh9S2v9TXc32G', amlDecision: 'reject', review: 'aml',
     amlSignals: [{ source: 'tether_blacklist', hit: true, detail: 'Адрес заморожен Tether' }, { source: 'ofac_sdn', hit: false }],
   });
+  addDeposit(null, 75, 'held', t0 - 3 * HOUR, { review: 'linked_sender', issuedToId: null });
+  addDeposit(null, 40, 'held', t0 - 5 * HOUR, { review: 'unidentified', issuedToId: null, fromAddress: 'TXa1bQ9cR8dS7eT6fU5gV4hW3iX2jY1kZm' });
   addDeposit(1, 4, 'below_min', t0 - 2 * DAY);
   const depositDto = (d: MockDeposit): DepositDto => ({
     id: d.id, status: d.status === 'failed' ? 'rejected' : d.status, amountMicro: d.amountMicro, network: 'TRC20', txId: d.txId,
     fromAddress: d.fromAddress, createdAt: d.createdAt, creditedAt: d.status === 'credited' ? d.finishedAt : null,
   });
-  const depositAdmin = (d: MockDeposit): AdminDepositDto => {
-    const u = users.find((x) => x.id === d.userId)!;
-    const { userId: _u, ...rest } = d;
-    return { ...rest, user: { id: u.id, username: u.username, firstName: u.firstName, telegramId: u.telegramId } };
+  const userRef = (id: number | null) => {
+    const u = id ? users.find((x) => x.id === id) : null;
+    return u ? { id: u.id, username: u.username, firstName: u.firstName, telegramId: u.telegramId } : null;
   };
-  const creditDeposit = (d: MockDeposit, by: 'auto' | 'admin', note: string | null) => {
+  const depositAdmin = (d: MockDeposit): AdminDepositDto => {
+    const { userId, issuedToId, ...rest } = d;
+    const senders = [...new Set(deposits.filter((x) => x.id !== d.id && x.status === 'credited' && x.fromAddress === d.fromAddress && x.userId).map((x) => x.userId!))];
+    return { ...rest, user: userRef(userId), issuedTo: userRef(issuedToId), senderUsers: senders.map((id) => userRef(id)!) };
+  };
+  const creditDeposit = (d: MockDeposit, by: 'auto' | 'admin', note: string | null, toUser?: number) => {
     if (!['pending', 'held', 'below_min'].includes(d.status)) fail(409, 'Пополнение уже обработано');
+    const uid = toUser ?? d.userId ?? fail(400, 'Выберите, кому зачислить');
+    const u = users.find((x) => x.id === uid) ?? fail(404, 'Пользователь не найден');
+    d.userId = u.id;
     d.status = 'credited';
     d.finishedAt = now();
     d.creditedBy = by;
     if (note) d.adminNote = note;
-    const u = users.find((x) => x.id === d.userId)!;
     engine.credit(u.id, d.amountMicro);
     u.depositedMicro += d.amountMicro;
     notify(u.id, 'deposit_credited', null, { deposit: depositDto(d) });
   };
+  const expireRequests = () => {
+    for (const r of requests) if (r.status === 'active' && r.expiresAt <= now()) Object.assign(r, { status: 'expired', endedAt: r.expiresAt });
+  };
+  const lastOn = (address: string) => {
+    const r = requests.filter((x) => x.address === address).at(-1);
+    return r ? { r, freeAt: (r.status === 'active' ? r.expiresAt : (r.endedAt ?? r.expiresAt)) + DEPOSIT_QUARANTINE_MS } : null;
+  };
+  const requestDto = (r: MockRequest): DepositRequestDto => ({
+    ...r, serverNow: now(), receivedMicro: deposits.filter((d) => d.requestId === r.id).reduce((s, d) => s + d.amountMicro, 0),
+    creditedMicro: deposits.filter((d) => d.requestId === r.id && d.status === 'credited').reduce((s, d) => s + d.amountMicro, 0),
+  });
+  const depositInfo = (userId: number): DepositInfoDto => {
+    expireRequests();
+    const r = requests.filter((x) => x.userId === userId).at(-1);
+    const show = r && r.status !== 'cancelled' && (r.status === 'active' || (r.endedAt ?? 0) > now() - 10 * MIN);
+    return {
+      token: 'USDT', network: 'TRC20', networkName: 'TRON (TRC-20)', enabled: pool.some((p) => p.enabled && !p.own),
+      request: show ? requestDto(r) : null, minDepositMicro: 10 * USDT_MICRO, confirmations: 20, demo: true,
+    };
+  };
   let demoDepositSent = false;
-  const simulateDeposit = () => {
+  const simulateDeposit = (r: MockRequest) => {
     if (demoDepositSent) return;
     demoDepositSent = true;
     setTimeout(() => {
-      const d = addDeposit(1, 50, 'pending', now());
+      if (r.status !== 'active') return void (demoDepositSent = false);
+      const d = addDeposit(r.userId, 50, 'pending', now(), { address: r.address, requestId: r.id });
+      Object.assign(r, { status: 'paid', endedAt: now() });
       setTimeout(() => {
         d.confirmedAt = now();
         d.amlDecision = 'clear';
         d.amlSignals = [{ source: 'tether_blacklist', hit: false }, { source: 'ofac_sdn', hit: false }];
         creditDeposit(d, 'auto', null);
       }, 9000);
-    }, 6000);
+    }, 8000);
+  };
+  const poolList = (): AdminDepositAddressDto[] => {
+    expireRequests();
+    return pool.map((p) => {
+      const last = lastOn(p.address);
+      const lent = last && last.freeAt > now() ? last : null;
+      const credited = deposits.filter((d) => d.address === p.address && d.status === 'credited');
+      return {
+        ...p, lastCheckedAt: now() - 15_000, holder: lent ? userRef(lent.r.userId) : null,
+        state: p.own ? 'own' : lent?.r.status === 'active' ? 'busy' : lent ? 'quarantine' : p.enabled ? 'free' : 'off',
+        until: lent ? (lent.r.status === 'active' ? lent.r.expiresAt : lent.freeAt) : null,
+        depositsCount: credited.length, receivedMicro: credited.reduce((s, d) => s + d.amountMicro, 0),
+      };
+    });
   };
 
   const user = (id: number) => users.find((u) => u.id === id) ?? fail(404, 'Пользователь не найден');
@@ -307,16 +365,24 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       ];
       return delay({ items: items.sort((a, b) => b.at - a.at) });
     },
-    deposit: () => (simulateDeposit(), delay({
-        token: 'USDT' as const,
-        network: 'TRC20' as const,
-        networkName: 'TRON (TRC-20)',
-        // Deliberately invalid (contains 0 and O, which TRON addresses never have): no wallet will accept it.
-        address: 'T0DEM0ADDRESS0NOT0REAL0O0000000000',
-        minDepositMicro: 10 * USDT_MICRO,
-        confirmations: 20,
-        demo: true,
-      })),
+    deposit: () => delay(depositInfo(me.id)),
+    depositOpen: () => {
+      expireRequests();
+      if (requests.some((r) => r.userId === me.id && r.status === 'active')) fail(409, 'Сначала отмените текущую заявку');
+      const mine = pool.find((p) => { const l = lastOn(p.address); return p.enabled && !p.own && l && l.r.userId === me.id && l.r.status !== 'active' && l.freeAt > now(); });
+      const free = pool.filter((p) => p.enabled && !p.own && (lastOn(p.address)?.freeAt ?? 0) <= now())
+        .sort((a, b) => (lastOn(a.address)?.freeAt ?? 0) - (lastOn(b.address)?.freeAt ?? 0))[0];
+      const p = mine ?? free ?? fail(409, 'Все адреса сейчас заняты. Попробуйте чуть позже');
+      const r: MockRequest = { id: requestId++, userId: me.id, address: p.address, status: 'active', createdAt: now(), expiresAt: now() + DEPOSIT_REQUEST_TTL_MS, endedAt: null };
+      requests.push(r);
+      simulateDeposit(r);
+      return delay(depositInfo(me.id));
+    },
+    depositCancel: () => {
+      const r = requests.find((x) => x.userId === me.id && x.status === 'active') ?? fail(409, 'Активной заявки нет');
+      Object.assign(r, { status: 'cancelled', endedAt: now() });
+      return delay(depositInfo(me.id));
+    },
     servicesConfig: () =>
       delay({ discountPercent: DISCOUNT, serviceRate: sRate(), fineLookupAvailable: true,
         steam: { minRub: STEAM_MIN_RUB, maxRub: STEAM_MAX_RUB }, parking: { minRub: MIN_PARKING_RUB, maxRub: MAX_PARKING_RUB } }),
@@ -478,11 +544,31 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       const c: AdminDepositCounts = { held: 0, below_min: 0, pending: 0, credited: 0, rejected: 0 };
       for (const d of deposits) if (d.status !== 'failed') c[d.status]++;
       const items = deposits.filter((d) => status === 'all' || d.status === status).slice().reverse().map(depositAdmin);
-      return delay({ items, counts: c, enabled: true });
+      return delay({ items, counts: c, enabled: pool.some((p) => p.enabled && !p.own) });
     },
-    depositCredit: (id, note) => {
+    depositPool: () => delay({ items: poolList() }),
+    depositPoolAdd: (address, label, own) => {
+      const a = address.trim();
+      if (!/^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(a)) fail(400, 'Это не адрес TRON. Он начинается на T и состоит из 34 символов');
+      if (pool.some((p) => p.address === a)) fail(409, 'Этот адрес уже добавлен');
+      pool.push({ id: poolId++, address: a, label: label.trim(), enabled: true, own, createdAt: now() });
+      return delay({ items: poolList() });
+    },
+    depositPoolUpdate: (id, patch) => {
+      const p = pool.find((x) => x.id === id) ?? fail(404, 'Адрес не найден');
+      if (patch.enabled !== undefined) p.enabled = patch.enabled;
+      if (patch.label !== undefined) p.label = patch.label.trim();
+      return delay({ items: poolList() });
+    },
+    depositPoolRemove: (id) => {
+      const p = pool.find((x) => x.id === id) ?? fail(404, 'Адрес не найден');
+      if (requests.some((r) => r.address === p.address) || deposits.some((d) => d.address === p.address)) fail(409, 'Адрес уже выдавался. Его можно только выключить');
+      pool.splice(pool.indexOf(p), 1);
+      return delay({ items: poolList() });
+    },
+    depositCredit: (id, note, userId) => {
       const d = deposits.find((x) => x.id === id) ?? fail(404, 'Пополнение не найдено');
-      creditDeposit(d, 'admin', note.trim() || null);
+      creditDeposit(d, 'admin', note.trim() || null, userId);
       return delay(depositAdmin(d));
     },
     depositReject: (id, reason) => {

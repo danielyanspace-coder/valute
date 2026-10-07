@@ -14,7 +14,6 @@ import { ObligationService } from './obligations/obligationService.js';
 import { BroadcastService } from './broadcasts/broadcastService.js';
 import { RateService } from './rates/rateService.js';
 import { UserRepo } from './users/userRepo.js';
-import { DepositAddressService } from './deposits/depositAddressService.js';
 import { DepositService, type DepositServiceOptions } from './deposits/depositService.js';
 import { USDT_MICRO } from '../../shared/payout.js';
 import { TronGridClient } from './deposits/tronClient.js';
@@ -57,16 +56,13 @@ const transfers = new TransferService(db, users, ledger, notifications, withdraw
 const fineLookup = new NoFineLookup();
 const orders = new OrderService(db, users, ledger, notifications, withdrawals, fineLookup, config.servicesDiscountPercent);
 
-const depositAddresses = config.tronXpub ? new DepositAddressService(db, config.tronXpub) : null;
 const aml = new AmlService(amlChecks);
 const depositOpts: DepositServiceOptions = {
   minDepositMicro: Math.round(config.depositMinUsdt * USDT_MICRO),
   batchSize: config.depositBatch,
   audit,
 };
-const deposits = depositAddresses
-  ? new DepositService(db, new TronGridClient(config.tronGridUrl, config.tronGridApiKey), aml, ledger, users, notifications, depositOpts)
-  : null;
+const deposits = new DepositService(db, new TronGridClient(config.tronGridUrl, config.tronGridApiKey), aml, ledger, users, notifications, depositOpts);
 
 const app = buildApp({
   rates,
@@ -85,7 +81,6 @@ const app = buildApp({
   allowDevAuth: config.allowDevAuth,
   supportUsername: config.supportUsername,
   depositMinUsdt: config.depositMinUsdt,
-  depositAddresses,
   deposits,
   audit,
   obligations,
@@ -105,8 +100,8 @@ const dealLoop = async () => {
 void dealLoop();
 void broadcasts.run(); // resume a broadcast interrupted by a restart
 
-// Deposit watcher: one pass at a time, never overlapping.
-if (deposits) {
+// Deposit watcher: one pass at a time, never overlapping. Addresses are added in the admin panel.
+{
   depositOpts.log = app.log;
   const loop = async () => {
     try {

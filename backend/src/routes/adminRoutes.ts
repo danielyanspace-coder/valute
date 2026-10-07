@@ -23,7 +23,7 @@ export interface AdminRouteDeps {
   ledger: Ledger;
   aml: AmlService;
   orders: OrderService;
-  deposits: DepositService | null;
+  deposits: DepositService;
   audit: AuditLog;
   obligations: ObligationService;
   broadcasts: BroadcastService;
@@ -163,21 +163,29 @@ export function adminRoutes(app: FastifyInstance, deps: AdminRouteDeps) {
   // ---------- Deposits (USDT TRC-20) ----------
 
   const DEPOSIT_STATUSES = ['held', 'below_min', 'pending', 'credited', 'rejected', 'failed', 'all'];
-  const depositsOrFail = () => {
-    if (!deps.deposits) throw new AppError(503, 'deposits_off', 'Пополнения не настроены (нет TRON_XPUB)');
-    return deps.deposits;
-  };
   app.get<{ Querystring: { status?: string } }>('/api/admin/deposits', async (req) => {
-    if (!deps.deposits) return { items: [], counts: { held: 0, below_min: 0, pending: 0, credited: 0, rejected: 0 }, enabled: false };
     const s = DEPOSIT_STATUSES.includes(req.query.status ?? '') ? req.query.status! : 'held';
-    return { items: deps.deposits.adminList(s), counts: deps.deposits.adminCounts(), enabled: true };
+    return { items: deps.deposits.adminList(s), counts: deps.deposits.adminCounts(), enabled: deps.deposits.enabled() };
   });
-  app.post<{ Params: { id: string }; Body: { note?: string } }>('/api/admin/deposits/:id/credit', async (req) =>
-    depositsOrFail().creditByAdmin(Number(req.params.id), String(req.body?.note ?? '')),
+  app.post<{ Params: { id: string }; Body: { note?: string; userId?: number } }>('/api/admin/deposits/:id/credit', async (req) =>
+    deps.deposits.creditByAdmin(Number(req.params.id), String(req.body?.note ?? ''), Number(req.body?.userId) || null),
   );
   app.post<{ Params: { id: string }; Body: { reason?: string } }>('/api/admin/deposits/:id/reject', async (req) =>
-    depositsOrFail().rejectByAdmin(Number(req.params.id), String(req.body?.reason ?? '')),
+    deps.deposits.rejectByAdmin(Number(req.params.id), String(req.body?.reason ?? '')),
   );
+
+  // Deposit addresses (TronLink accounts) and the operator's own wallets.
+  app.get('/api/admin/deposit-pool', async () => ({ items: deps.deposits.poolList() }));
+  app.post<{ Body: { address?: string; label?: string; own?: boolean } }>('/api/admin/deposit-pool', async (req) => ({
+    items: deps.deposits.poolAdd(String(req.body?.address ?? ''), String(req.body?.label ?? ''), !!req.body?.own),
+  }));
+  app.post<{ Params: { id: string }; Body: { enabled?: boolean; label?: string } }>('/api/admin/deposit-pool/:id', async (req) => ({
+    items: deps.deposits.poolUpdate(Number(req.params.id), {
+      enabled: typeof req.body?.enabled === 'boolean' ? req.body.enabled : undefined,
+      label: typeof req.body?.label === 'string' ? req.body.label : undefined,
+    }),
+  }));
+  app.post<{ Params: { id: string } }>('/api/admin/deposit-pool/:id/remove', async (req) => ({ items: deps.deposits.poolRemove(Number(req.params.id)) })); 
 
   // Manual screening: GET /api/admin/aml/check?chain=TRON&address=T...
   app.get<{ Querystring: { chain?: string; address?: string } }>('/api/admin/aml/check', async (req, reply) => {

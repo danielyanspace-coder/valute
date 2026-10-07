@@ -1,6 +1,5 @@
 import type { FastifyInstance } from 'fastify';
 import type { CreateCheckRequest, CreateOrderRequest, CreateWithdrawalRequest, DepositInfoDto, FineLookupDto, HistoryItem, MeDto, NotificationDto, SendTransferRequest, ServicesConfigDto } from '../../../shared/api.js';
-import type { DepositAddressService } from '../deposits/depositAddressService.js';
 import type { DepositService } from '../deposits/depositService.js';
 import { STEAM_MAX_RUB, STEAM_MIN_RUB, MAX_PARKING_RUB, MIN_PARKING_RUB } from '../../../shared/services.js';
 import type { FineLookup } from '../orders/fineLookup.js';
@@ -23,10 +22,7 @@ export interface UserRouteDeps {
   botUsername: () => string;
   users: UserRepo;
   depositMinUsdt: number;
-  /** null until TRON_XPUB is configured. */
-  depositAddresses: DepositAddressService | null;
-  /** null until TRON_XPUB is configured. */
-  deposits: DepositService | null;
+  deposits: DepositService;
   orders: OrderService;
   fineLookup: FineLookup;
   servicesDiscountPercent: number;
@@ -100,7 +96,7 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
       const t = n.transferId ? deps.transfers.transfer(n.transferId) : undefined;
       const c = n.checkId ? deps.transfers.check(n.checkId) : undefined;
       const o = n.orderId ? deps.orders.row(n.orderId) : undefined;
-      const d = n.depositId && deps.deposits ? deps.deposits.get(n.depositId) : null;
+      const d = n.depositId ? deps.deposits.get(n.depositId) : null;
       return {
         id: n.id,
         type: n.type,
@@ -108,7 +104,7 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
         transfer: t ? deps.transfers.transferDto(t, uid) : null,
         check: c ? deps.transfers.checkDto(c) : null,
         order: o ? deps.orders.toUserDto(o) : null,
-        deposit: d && deps.deposits ? deps.deposits.toUserDto(d) : null,
+        deposit: d ? deps.deposits.toUserDto(d) : null,
         deduction: n.type === 'obligation_repaid' && n.obligationId
           ? { id: n.id, amountMicro: n.amountMicro ?? 0, reason: deps.obligations.get(n.obligationId).publicReason, createdAt: n.createdAt }
           : null,
@@ -118,29 +114,32 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     return { items };
   });
 
-  // Deposits are USDT TRC-20 only. The address is issued on the first visit of the deposit
-  // screen; without TRON_XPUB the app shows "address is being prepared".
-  app.get('/api/deposit', async (req): Promise<DepositInfoDto> => {
-    const uid = req.user!.id;
-    const tron = deps.depositAddresses
-      ? { address: deps.depositAddresses.forUser(uid) }
-      : deps.users.depositAddresses(uid).find((a) => a.chain === 'TRON');
-    deps.deposits?.markViewed(uid); // the user is about to send: watch the address closely
-    return {
-      token: 'USDT',
-      network: 'TRC20',
-      networkName: 'TRON (TRC-20)',
-      address: tron?.address ?? null,
-      minDepositMicro: Math.round(deps.depositMinUsdt * 1_000_000),
-      confirmations: 20,
-    };
+  // Deposits are USDT TRC-20 only, through a request: the user gets an address from the
+  // pool for 15 minutes. A new request needs the old one cancelled.
+  const depositInfo = (uid: number): DepositInfoDto => ({
+    token: 'USDT',
+    network: 'TRC20',
+    networkName: 'TRON (TRC-20)',
+    enabled: deps.deposits.enabled(),
+    request: deps.deposits.current(uid),
+    minDepositMicro: Math.round(deps.depositMinUsdt * 1_000_000),
+    confirmations: 20,
+  });
+  app.get('/api/deposit', async (req) => depositInfo(req.user!.id));
+  app.post('/api/deposit/request', async (req) => {
+    deps.deposits.open(req.user!.id);
+    return depositInfo(req.user!.id);
+  });
+  app.post('/api/deposit/request/cancel', async (req) => {
+    deps.deposits.cancel(req.user!.id);
+    return depositInfo(req.user!.id);
   });
 
   app.get('/api/history', async (req) => {
     const uid = req.user!.id;
     const orders = deps.orders.listForUser(uid).map((o): HistoryItem => ({ type: 'order', at: o.created_at, order: deps.orders.toUserDto(o) }));
-    const deposits = (deps.deposits?.listForUser(uid) ?? []).map((d): HistoryItem => {
-      const deposit = deps.deposits!.toUserDto(d);
+    const deposits = deps.deposits.listForUser(uid).map((d): HistoryItem => {
+      const deposit = deps.deposits.toUserDto(d);
       return { type: 'deposit', at: deposit.createdAt, deposit };
     });
     const deductions = deps.obligations.deductionsForUser(uid).map((deduction): HistoryItem => ({ type: 'deduction', at: deduction.createdAt, deduction }));

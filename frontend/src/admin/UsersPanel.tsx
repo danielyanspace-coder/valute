@@ -30,7 +30,7 @@ export function UsersPanel({ api, userId, onOpenUser, onOpenDeal, onOpenJournal 
       <div className="ab-table">
         {items.map((u) => (
           <button key={u.id} className="ab-trow user" onClick={() => onOpenUser(u.id)}>
-            <span className="ab-tno">{u.username ? `@${u.username}` : u.firstName}<small>ID {u.telegramId}</small></span>
+            <span className="ab-tno">{u.username ? `@${u.username}` : u.firstName}<small>ID {u.id} · TG {u.telegramId}</small></span>
             <span>{fmtMicroExact(u.availableMicro)}<small>заморожено {fmtMicroExact(u.frozenMicro)}</small></span>
             <span>{u.activeDeals ? `Активных сделок: ${u.activeDeals}` : 'Нет активных сделок'}</span>
             <span className="ab-flags">
@@ -75,7 +75,7 @@ function UserPage({ api, id, onBack, onOpenDeal, onOpenJournal }: { api: AdminAp
           <Row k="Сделок всего" v={`${u.stats.withdrawalsTotal}, выполнено ${u.stats.withdrawalsCompleted}`} />
           <Row k="Сообщал «не поступила»" v={String(u.stats.disputes)} tone={u.stats.disputes ? 'warn' : undefined} />
           <Row k="Переводы" v={`получено ${fmtMicroExact(u.stats.transfersInMicro)}, отправлено ${fmtMicroExact(u.stats.transfersOutMicro)}`} />
-          {u.depositAddresses.map((a) => <Row key={a.address} k={`Адрес ${a.chain}`} v={a.address} copy={a.address} mono small />)}
+          {u.senderWallets.map((a) => <Row key={a.address} k={`Пополнял с кошелька · ${a.deposits}`} v={a.address} copy={a.address} mono small />)}
         </Card>
         <Card title="Теневые заморозки">
           {u.obligations.length === 0 && <div className="adm-muted small">Нет</div>}

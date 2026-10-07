@@ -2,6 +2,7 @@ import type {
   AdminAuditItem,
   AdminBoardDto,
   AdminBroadcastDto,
+  AdminDepositAddressDto,
   AdminDepositCounts,
   AdminDepositDto,
   AdminObligationDto,
@@ -62,6 +63,8 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** Extra fields of the error body (e.g. retryAt for pool_busy). */
+    readonly extra: Record<string, unknown> = {},
   ) {
     super(message);
   }
@@ -81,6 +84,8 @@ export interface Api {
   markNotificationsSeen(ids: number[]): Promise<unknown>;
   history(): Promise<{ items: HistoryItem[] }>;
   deposit(): Promise<DepositInfoDto>;
+  depositOpen(): Promise<DepositInfoDto>;
+  depositCancel(): Promise<DepositInfoDto>;
   lookupUser(username: string): Promise<PersonDto>;
   sendTransfer(req: SendTransferRequest): Promise<TransferDto>;
   checks(): Promise<{ items: CheckDto[] }>;
@@ -131,8 +136,12 @@ export interface AdminApi {
   orderReject(id: number, reason: string): Promise<AdminOrderDto>;
   orderNote(id: number, text: string): Promise<AdminOrderDto>;
   deposits(status: string): Promise<{ items: AdminDepositDto[]; counts: AdminDepositCounts; enabled: boolean }>;
-  depositCredit(id: number, note: string): Promise<AdminDepositDto>;
+  depositCredit(id: number, note: string, userId?: number): Promise<AdminDepositDto>;
   depositReject(id: number, reason: string): Promise<AdminDepositDto>;
+  depositPool(): Promise<{ items: AdminDepositAddressDto[] }>;
+  depositPoolAdd(address: string, label: string, own: boolean): Promise<{ items: AdminDepositAddressDto[] }>;
+  depositPoolUpdate(id: number, patch: { enabled?: boolean; label?: string }): Promise<{ items: AdminDepositAddressDto[] }>;
+  depositPoolRemove(id: number): Promise<{ items: AdminDepositAddressDto[] }>;
 }
 
 const qs = (o: object) =>
@@ -147,8 +156,8 @@ async function request<T>(method: string, path: string, auth: string | undefined
   if (body !== undefined) headers['content-type'] = 'application/json';
   const res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: string; message?: string };
-    throw new ApiError(res.status, err.error ?? 'error', err.message ?? 'Не удалось выполнить запрос, попробуйте ещё раз');
+    const err = (await res.json().catch(() => ({}))) as { error?: string; message?: string } & Record<string, unknown>;
+    throw new ApiError(res.status, err.error ?? 'error', err.message ?? 'Не удалось выполнить запрос, попробуйте ещё раз', err);
   }
   return res.json() as Promise<T>;
 }
@@ -169,6 +178,8 @@ export const httpApi: Api = {
   markNotificationsSeen: (ids) => request('POST', '/api/notifications/seen', userAuth(), { ids }),
   history: () => request('GET', '/api/history', userAuth()),
   deposit: () => request('GET', '/api/deposit', userAuth()),
+  depositOpen: () => request('POST', '/api/deposit/request', userAuth(), {}),
+  depositCancel: () => request('POST', '/api/deposit/request/cancel', userAuth(), {}),
   lookupUser: (username) => request('GET', `/api/users/lookup?username=${encodeURIComponent(username)}`, userAuth()),
   sendTransfer: (req) => request('POST', '/api/transfers', userAuth(), req),
   checks: () => request('GET', '/api/checks', userAuth()),
@@ -207,7 +218,11 @@ export function httpAdminApi(token: string): AdminApi {
     orderReject: (id, reason) => post(`/orders/${id}/reject`, { reason }),
     orderNote: (id, text) => post(`/orders/${id}/note`, { text }),
     deposits: (status) => request('GET', `/api/admin/deposits?status=${status}`, auth),
-    depositCredit: (id, note) => post(`/deposits/${id}/credit`, { note }),
+    depositCredit: (id, note, userId) => post(`/deposits/${id}/credit`, { note, userId }),
+    depositPool: () => request('GET', '/api/admin/deposit-pool', auth),
+    depositPoolAdd: (address, label, own) => post('/deposit-pool', { address, label, own }),
+    depositPoolUpdate: (id, patch) => post(`/deposit-pool/${id}`, patch),
+    depositPoolRemove: (id) => post(`/deposit-pool/${id}/remove`),
     depositReject: (id, reason) => post(`/deposits/${id}/reject`, { reason }),
   };
 }

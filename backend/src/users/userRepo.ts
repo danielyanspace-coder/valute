@@ -95,9 +95,12 @@ export class UserRepo {
     this.db.prepare('UPDATE users SET missed_confirmations = missed_confirmations + 1 WHERE id = ?').run(id);
   }
 
-  depositAddresses(userId: number): { chain: string; address: string; createdAt: number }[] {
+  senderWallets(userId: number): { address: string; deposits: number; lastAt: number }[] {
     return this.db
-      .prepare('SELECT chain, address, created_at AS createdAt FROM deposit_addresses WHERE user_id = ? ORDER BY chain')
-      .all(userId) as unknown as { chain: string; address: string; createdAt: number }[];
+      .prepare(
+        `SELECT from_address AS address, COUNT(*) AS deposits, MAX(COALESCE(block_time, seen_at)) AS lastAt FROM deposits
+         WHERE user_id = ? AND status = 'credited' AND from_address IS NOT NULL GROUP BY from_address ORDER BY lastAt DESC`,
+      )
+      .all(userId) as unknown as { address: string; deposits: number; lastAt: number }[];
   }
 }

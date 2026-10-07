@@ -385,3 +385,47 @@ body.ab-noscroll { overflow: hidden; }
   .ab-trow.user > span:last-child { align-items: flex-start; text-align: left; }
 }
 .ab-user-actions .adm-btn { flex: 1 1 auto; justify-content: center; }
+
+/* ---------- Deposits: crediting a held deposit, address pool ---------- */
+.dep-credit { display: flex; flex-direction: column; gap: 10px; }
+.dep-cands { display: flex; flex-wrap: wrap; gap: 8px; }
+.dep-cand {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px; border-radius: 12px; cursor: pointer;
+  background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border); color: var(--text); font: inherit; font-size: 13px; font-weight: 600;
+}
+.dep-cand span { font-size: 11px; font-weight: 400; color: var(--muted); }
+.dep-cand.active { border-color: rgba(127, 140, 255, 0.7); background: rgba(127, 140, 255, 0.14); }
+.dep-target { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.dep-target input { width: 140px; }
+
+.dp { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+.dp-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.dp-summary > div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--card-solid); border: 1px solid var(--border); }
+.dp-summary b { font-size: 20px; font-variant-numeric: tabular-nums; }
+.dp-summary span { font-size: 12px; color: var(--muted); }
+.dp-add { display: flex; flex-direction: column; gap: 10px; }
+.dp-add-row { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: 8px; }
+.dp-own { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); cursor: pointer; }
+.dp-own input { width: 16px; height: 16px; }
+.dp-list { display: flex; flex-direction: column; gap: 8px; }
+.dp-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--card-solid); border: 1px solid var(--border); }
+.dp-row.off { opacity: 0.6; }
+.dp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.dp-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 14px; }
+.dp-holder { font-size: 13px; color: var(--text); }
+.dp-until { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.dp-addr { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dp-addr code { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.dp-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.dp-chip { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 8px; white-space: nowrap; }
+.dp-chip.ok { background: rgba(47, 209, 139, 0.14); color: #2fd18b; }
+.dp-chip.busy { background: rgba(127, 140, 255, 0.16); color: #b8c0ff; }
+.dp-chip.warn { background: rgba(255, 190, 80, 0.14); color: #ffc768; }
+.dp-chip.off { background: rgba(139, 147, 163, 0.15); color: #b3bac7; }
+.dp-chip.own { background: rgba(38, 161, 123, 0.16); color: #5fd6ae; }
+@media (max-width: 700px) {
+  .dp-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dp-add-row { grid-template-columns: 1fr; }
+  .dp-row { flex-direction: column; align-items: stretch; }
+  .dp-actions { justify-content: flex-end; }
+}

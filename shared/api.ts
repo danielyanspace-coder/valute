@@ -3,6 +3,7 @@ import type { PayoutMethod, WithdrawalStatus } from './payout.js';
 import type { AuditActor, AuditType } from './audit.js';
 import type { BoardSection, DealResolution, UserDealAction } from './deals.js';
 import type { FineInfo, OrderStatus, ServiceKind } from './services.js';
+import type { DepositRequestStatus, DepositReview } from './deposits.js';
 
 export interface MeDto {
   user: {
@@ -35,12 +36,35 @@ export interface DepositInfoDto {
   token: 'USDT';
   network: 'TRC20';
   networkName: string;
-  /** The user's personal TRON address; null until address generation is set up. */
-  address: string | null;
+  /** false when no deposit addresses are configured in the admin panel. */
+  enabled: boolean;
+  /** The open request, or the last one if it ended less than a minute ago. */
+  request: DepositRequestDto | null;
   minDepositMicro: number;
   confirmations: number;
   /** true in the standalone demo: the address is a fake placeholder. */
   demo?: boolean;
+}
+
+export interface DepositRequestDto {
+  id: number;
+  address: string;
+  status: DepositRequestStatus;
+  createdAt: number;
+  expiresAt: number;
+  endedAt: number | null;
+  /** USDT seen for this request so far (confirmed or not). */
+  receivedMicro: number;
+  /** Of that, already on the balance. */
+  creditedMicro: number;
+  serverNow: number;
+}
+
+/** 409 pool_busy carries this: every address is lent out. */
+export interface DepositPoolBusyDto {
+  error: 'pool_busy';
+  message: string;
+  retryAt: number;
 }
 
 export interface CreateWithdrawalRequest {
@@ -265,7 +289,8 @@ export interface AdminUserDto {
   obligationsLeftMicro: number;
   availableMicro: number;
   frozenMicro: number;
-  depositAddresses: { chain: string; address: string; createdAt: number }[];
+  /** Wallets this user topped up from (credited deposits). */
+  senderWallets: { address: string; deposits: number; lastAt: number }[];
   stats: {
     depositedMicro: number;
     withdrawnRub: number;
@@ -534,7 +559,41 @@ export interface AdminDepositDto {
   finishedAt: number | null;
   creditedBy: 'auto' | 'admin' | null;
   adminNote: string | null;
-  user: { id: number; username: string | null; firstName: string; telegramId: number };
+  /** Who gets the money; null for an unidentified deposit until the operator picks someone. */
+  user: AdminUserRef | null;
+  review: DepositReview | null;
+  /** Came after the request ended, during the quarantine. */
+  late: boolean;
+  requestId: number | null;
+  /** Who held the address when the transfer was made. */
+  issuedTo: AdminUserRef | null;
+  /** Accounts this sender wallet topped up before. */
+  senderUsers: AdminUserRef[];
+}
+
+export interface AdminUserRef {
+  id: number;
+  username: string | null;
+  firstName: string;
+  telegramId: number;
+}
+
+export interface AdminDepositAddressDto {
+  id: number;
+  address: string;
+  label: string;
+  enabled: boolean;
+  /** The operator's own wallet: never lent out, transfers from it are ignored. */
+  own: boolean;
+  state: 'free' | 'busy' | 'quarantine' | 'off' | 'own';
+  /** Who holds it now (busy or quarantine). */
+  holder: AdminUserRef | null;
+  /** When it becomes free. */
+  until: number | null;
+  createdAt: number;
+  lastCheckedAt: number | null;
+  depositsCount: number;
+  receivedMicro: number;
 }
 
 export interface AdminDepositCounts {

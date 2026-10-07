@@ -34,8 +34,6 @@ export const config = {
   chainalysisSanctionsApiKey: process.env.CHAINALYSIS_SANCTIONS_API_KEY ?? '',
   /** Deposits below this are not credited (dust and spam transfers). */
   depositMinUsdt: num('DEPOSIT_MIN_USDT', 10),
-  /** Account-level extended PUBLIC key m/44'/195'/0' (see scripts/tron-wallet.mjs). Empty: no addresses issued. */
-  tronXpub: (process.env.TRON_XPUB ?? '').trim(),
   /** Deposit watcher. A free key from trongrid.io lifts the anonymous rate limit. */
   tronGridUrl: process.env.TRONGRID_URL || 'https://api.trongrid.io',
   tronGridApiKey: process.env.TRONGRID_API_KEY ?? '',

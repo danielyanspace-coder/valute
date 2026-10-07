@@ -342,6 +342,68 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (broadcast_id, user_id)
   );
   `,
+  // 7: deposits through a pool of public addresses lent to one user per request.
+  `
+  CREATE TABLE deposit_pool (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    address TEXT NOT NULL UNIQUE,
+    label TEXT NOT NULL DEFAULT '',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    -- 1 = the operator's own wallet: never lent, transfers FROM it are not deposits
+    own INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    last_checked_at INTEGER,
+    cursor_ts INTEGER
+  );
+  CREATE TABLE deposit_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    address TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('active', 'paid', 'cancelled', 'expired')),
+    created_at INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    ended_at INTEGER
+  );
+  CREATE INDEX deposit_requests_address ON deposit_requests(address, created_at);
+  CREATE INDEX deposit_requests_user ON deposit_requests(user_id, created_at);
+  CREATE UNIQUE INDEX deposit_requests_one_active ON deposit_requests(user_id) WHERE status = 'active';
+
+  CREATE TABLE deposits_v7 (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER REFERENCES users(id),
+    chain TEXT NOT NULL,
+    address TEXT NOT NULL,
+    tx_id TEXT NOT NULL,
+    from_address TEXT,
+    amount_micro INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('pending', 'credited', 'below_min', 'held', 'rejected', 'failed')),
+    aml_decision TEXT,
+    aml_detail TEXT,
+    block_number INTEGER,
+    block_time INTEGER,
+    seen_at INTEGER NOT NULL,
+    confirmed_at INTEGER,
+    finished_at INTEGER,
+    credited_by TEXT,
+    admin_note TEXT,
+    request_id INTEGER REFERENCES deposit_requests(id),
+    issued_to INTEGER REFERENCES users(id),
+    late INTEGER NOT NULL DEFAULT 0,
+    review TEXT,
+    UNIQUE (chain, tx_id, address)
+  );
+  INSERT INTO deposits_v7 (id, user_id, chain, address, tx_id, from_address, amount_micro, status, aml_decision, aml_detail,
+    block_number, block_time, seen_at, confirmed_at, finished_at, credited_by, admin_note, issued_to, review)
+  SELECT id, user_id, chain, address, tx_id, from_address, amount_micro, status, aml_decision, aml_detail,
+    block_number, block_time, seen_at, confirmed_at, finished_at, credited_by, admin_note, user_id,
+    CASE WHEN status = 'held' THEN 'aml' END
+  FROM deposits;
+  DROP TABLE deposits;
+  ALTER TABLE deposits_v7 RENAME TO deposits;
+  CREATE INDEX deposits_user ON deposits(user_id, seen_at);
+  CREATE INDEX deposits_status ON deposits(status, seen_at);
+  CREATE INDEX deposits_sender ON deposits(from_address);
+  `,
 ];
 
 export type Db = DatabaseSync;

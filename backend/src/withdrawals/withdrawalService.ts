@@ -57,6 +57,8 @@ export class AppError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    /** Extra fields for the JSON error body. */
+    readonly extra?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -686,7 +688,7 @@ export class WithdrawalService {
       obligationsLeftMicro: this.obligations?.leftForUser(userId) ?? 0,
       availableMicro,
       frozenMicro,
-      depositAddresses: this.users.depositAddresses(userId),
+      senderWallets: this.users.senderWallets(userId),
       stats: {
         depositedMicro: this.ledger.totalByKind(userId, 'deposit'),
         withdrawnRub: s.rub,

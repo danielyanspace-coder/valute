@@ -72,7 +72,7 @@ export interface DemoUser {
   availableMicro: number;
   frozenMicro: number;
   depositedMicro: number;
-  addresses: { chain: string; address: string; createdAt: number }[];
+  senderWallets: { address: string; deposits: number; lastAt: number }[];
   supportLockedAt: number | null;
   botBlockedAt: number | null;
 }
@@ -265,7 +265,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
       id: u.id, telegramId: u.telegramId, username: u.username, firstName: u.firstName, lastName: u.lastName, photoUrl: null,
       languageCode: u.languageCode, createdAt: u.createdAt, lastSeenAt: u.lastSeenAt, blocked: u.blocked,
       missedConfirmations: u.missedConfirmations, supportLockedAt: u.supportLockedAt, botBlockedAt: u.botBlockedAt,
-      obligationsLeftMicro: leftFor(id), availableMicro: u.availableMicro, frozenMicro: u.frozenMicro, depositAddresses: u.addresses,
+      obligationsLeftMicro: leftFor(id), availableMicro: u.availableMicro, frozenMicro: u.frozenMicro, senderWallets: u.senderWallets,
       stats: {
         depositedMicro: u.depositedMicro,
         withdrawnRub: done.reduce((s, d) => s + (d.finalRub ?? d.amountRub), 0),

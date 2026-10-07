@@ -31,6 +31,8 @@ npm run dev                   # backend :8080, frontend :5173 (проксиру�
 | `GET /api/admin/aml/check?chain=TRON&address=…` | бесплатная AML-проверка адреса; `Authorization: Bearer $ADMIN_TOKEN` |
 | `POST /api/withdrawals` | заявка на вывод в рубли (СБП или карта), USDT замораживаются |
 | `POST /api/withdrawals/:id/received` · `/not-received` · `/other-amount` | ответы пользователя по сделке: оплата поступила / не поступила / другая сумма |
+| `GET /api/deposit` · `POST /api/deposit/request` · `POST /api/deposit/request/cancel` | пополнение USDT TRC-20: текущая заявка, получить адрес на 15 минут, отменить |
+| `/api/admin/deposits` · `/api/admin/deposit-pool` | пополнения на проверке и пул адресов (добавить, выключить, удалить), `Authorization: Bearer $ADMIN_TOKEN` |
 | `GET /api/notifications` | уведомления для окон в приложении |
 | `/admin` | админка: сделки, архив, пользователи, теневые заморозки, журнал, рассылки, МК, пополнения; пароль `ADMIN_TOKEN` |
 | `/api/admin/deals/*` · `/users/*` · `/obligations` · `/journal` · `/broadcasts` | API админки, `Authorization: Bearer $ADMIN_TOKEN` |
