@@ -335,7 +335,7 @@ export class WithdrawalService {
   /** The user confirmed by mistake: write-off is undone, the deal waits for a decision again. */
   reopen(id: number): WithdrawalRow {
     const row = this.adminStep(id, 'reopen', (w) => {
-      this.move(w, 'not_received', { user_decision: null, user_confirmed_at: null, debited_micro: null, final_rub: null });
+      this.move(w, 'not_received', { user_decision: null, user_decided_at: null, user_confirmed_at: null, debited_micro: null, final_rub: null });
       this.ledger.post([
         { userId: w.user_id, bucket: 'frozen', amountMicro: w.amount_micro, kind: 'withdrawal_reopen', refType: 'withdrawal', refId: id },
       ]);
@@ -493,10 +493,13 @@ export class WithdrawalService {
   private async sendReminder(w: WithdrawalRow, n: number): Promise<void> {
     const user = this.users.get(w.user_id);
     if (!user) return;
-    this.notifications.notify(user, 'deal_reminder', { withdrawalId: w.id });
     let delivered = false;
     let error: string | null = null;
-    if (this.messenger) {
+    // A user locked until they contact support cannot answer: no buttons that would not work.
+    if (user.support_lock_at) {
+      error = 'Заблокирован до связи с поддержкой';
+    } else if (this.messenger) {
+      this.notifications.notify(user, 'deal_reminder', { withdrawalId: w.id });
       if (w.bot_message_id) await this.messenger.editButtons(user.telegram_id, w.bot_message_id, []);
       const msg = reminderMessage(n, w.amount_rub, w.id);
       const res = await this.messenger.send(user.telegram_id, msg.text, { buttons: this.dealButtons(w, msg.receivedLabel) });
@@ -507,6 +510,7 @@ export class WithdrawalService {
         error = res.blocked ? 'Пользователь заблокировал бота' : res.error;
       }
     } else {
+      this.notifications.notify(user, 'deal_reminder', { withdrawalId: w.id });
       error = 'Бот не подключён';
     }
     this.db

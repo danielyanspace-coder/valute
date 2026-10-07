@@ -59,8 +59,10 @@ export function JournalPanel({ api, userId, onClearUser, onOpenDeal, onOpenUser 
       <div className="ab-filters">
         <input className="ab-search" placeholder="Поиск: @username, имя, текст" value={q} onChange={(e) => setQ(e.target.value)} />
         <input className="ab-small-input" placeholder="№ сделки" inputMode="numeric" value={deal} onChange={(e) => setDeal(e.target.value)} />
-        <label className="ab-date">с <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-        <label className="ab-date">по <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+        <div className="ab-dates">
+          <label className="ab-date">с <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+          <label className="ab-date">по <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+        </div>
       </div>
       {error && <div className="adm-error">{error}</div>}
       {items.length === 0 && <div className="adm-empty">Событий нет</div>}

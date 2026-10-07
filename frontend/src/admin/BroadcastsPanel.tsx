@@ -64,11 +64,16 @@ export function BroadcastsPanel({ api }: { api: AdminApi }) {
             <textarea rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder="Например: Плановые технические работы сегодня с 02:00 до 03:00 по Москве." />
           </label>
           <div className="adm-muted small">{text.length} / {photo ? 1024 : 4096} символов</div>
-          <label className="adm-field">
-            <span>Картинка (необязательно, до 5 МБ)</span>
-            <input type="file" accept="image/jpeg,image/png" onChange={async (e) => { const f = e.target.files?.[0]; setPhoto(f ? await readFile(f) : null); }} />
-          </label>
-          {photo && <button className="adm-link" onClick={() => setPhoto(null)}>Убрать картинку</button>}
+          <div className="adm-field">
+            <span>Картинка (необязательно, JPG или PNG до 5 МБ)</span>
+            <div className="ab-file">
+              <label className="adm-btn">
+                {photo ? 'Заменить картинку' : 'Выбрать картинку'}
+                <input type="file" accept="image/jpeg,image/png" hidden onChange={async (e) => { const f = e.target.files?.[0]; setPhoto(f ? await readFile(f) : null); e.target.value = ''; }} />
+              </label>
+              {photo && <button className="adm-link" onClick={() => setPhoto(null)}>Убрать</button>}
+            </div>
+          </div>
           <div className="ab-two">
             <label className="adm-field"><span>Кнопка: текст</span><input value={buttonText} onChange={(e) => setButtonText(e.target.value)} placeholder="Открыть кошелёк" /></label>
             <label className="adm-field"><span>Кнопка: ссылка</span><input value={buttonUrl} onChange={(e) => setButtonUrl(e.target.value)} placeholder="https://t.me/…" /></label>

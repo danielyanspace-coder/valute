@@ -312,7 +312,7 @@ export function UserCard({ u, api, onDone, onOpenUser }: { u: AdminUserDto; api:
       {u.obligationsLeftMicro > 0 && <Row k="Теневая заморозка" v={`${fmtMicroExact(u.obligationsLeftMicro)} к удержанию`} tone="warn" />}
       <Row k="Вывод" v={u.blocked ? 'Запрещён' : 'Разрешён'} tone={u.blocked ? 'danger' : 'ok'} />
       <Row k="Поддержка" v={u.supportLockedAt ? `Заблокирован до связи с ${fmtDateTime(u.supportLockedAt)}` : 'Без блокировки'} tone={u.supportLockedAt ? 'danger' : undefined} />
-      <div className="adm-actions" style={{ marginTop: 10 }}>
+      <div className="ab-user-actions">
         <SupportLockButton api={api} user={{ id: u.id, supportLocked: !!u.supportLockedAt }} onDone={onDone} />
         <BlockToggle api={api} userId={u.id} blocked={u.blocked} onDone={onDone} />
         <Adjust api={api} userId={u.id} onDone={onDone} />

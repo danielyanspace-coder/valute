@@ -42,8 +42,10 @@ export function ArchivePanel({ api, onOpenDeal }: { api: AdminApi; onOpenDeal: (
           <option value="sbp">СБП</option>
           <option value="card">Карта</option>
         </select>
-        <label className="ab-date">с <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-        <label className="ab-date">по <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+        <div className="ab-dates">
+          <label className="ab-date">с <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+          <label className="ab-date">по <input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+        </div>
       </div>
       {error && <div className="adm-error">{error}</div>}
       {items.length === 0 && <div className="adm-empty">Ничего не найдено</div>}

@@ -9,7 +9,7 @@ import { INSTANT, confirmFor, runInstant } from './dealActions';
 import { ConfirmDialog, ContactDialog, CopyChip, PayoutLogo, useNow, type ConfirmRequest } from './ui';
 
 /** Sections that make a sound when a new deal lands in them. */
-const LOUD: BoardSection[] = ['new', 'user_confirmed', 'mismatch', 'not_received', 'inactive', 'requisite'];
+const LOUD: BoardSection[] = ['new', 'user_confirmed', 'mismatch', 'not_received', 'inactive'];
 const SOUND_KEY = 'adminSound';
 
 function beep() {
@@ -188,10 +188,10 @@ export function DealCard({ d, now, busy, onOpen, onAction, onContact }: {
         </div>
       )}
       {d.section === 'user_confirmed' && <div className="ab-line">Подтвердил {d.userDecidedAt ? fmtAgo(d.userDecidedAt, now) : ''}</div>}
-      {d.section === 'user_confirmed' && !d.requisiteOffAt && d.enteredAt && <div className="ab-reminder small">Реквизит {d.requisite} не отмечен как отключённый</div>}
-      {d.section === 'not_received' && <div className="ab-line">Сообщил {d.userDecidedAt ? fmtAgo(d.userDecidedAt, now) : ''}</div>}
+      {d.section === 'not_received' && <div className="ab-line">{d.userDecidedAt ? `Сообщил ${fmtAgo(d.userDecidedAt, now)}` : 'Возвращена на рассмотрение'}</div>}
       {d.section === 'mismatch' && <div className="ab-line">Получил <b>{fmtRub0(d.reportedRub ?? 0)}</b> вместо {fmtRub0(d.amountRub)}</div>}
       {d.section === 'inactive' && <div className="ab-line">Не ответил на {REMINDER_COUNT} уведомлений</div>}
+      {d.section !== 'requisite' && d.enteredAt && !d.requisiteOffAt && <div className="ab-reminder small">Реквизит {d.requisite} не отмечен как отключённый</div>}
       {platform}
       {(d.user.supportLocked || d.user.botBlocked) && (
         <div className="ab-flags">
@@ -204,12 +204,7 @@ export function DealCard({ d, now, busy, onOpen, onAction, onContact }: {
         {d.section === 'new' && <Btn tone="primary" disabled={busy} onClick={() => onAction('take')}>Взять в работу</Btn>}
         {d.section === 'in_work' && <Btn tone="warn" disabled={busy} onClick={() => onAction('entered')}>В сделку вошли</Btn>}
         {d.section === 'requisite' && <Btn tone="warn" disabled={busy} onClick={() => onAction('requisite_off')}>ОТКЛЮЧИЛ</Btn>}
-        {d.section === 'user_confirmed' && (
-          <>
-            <Btn tone="success" disabled={busy} onClick={() => onAction('close')}>Подтверждено / Закрыть</Btn>
-            {!d.requisiteOffAt && d.enteredAt && <Btn tone="ghost" disabled={busy} onClick={() => onAction('requisite_off')}>ОТКЛЮЧИЛ</Btn>}
-          </>
-        )}
+        {d.section === 'user_confirmed' && <Btn tone="success" disabled={busy} onClick={() => onAction('close')}>Подтверждено / Закрыть</Btn>}
         {d.section === 'not_received' && (
           <>
             <Btn tone="success" disabled={busy} onClick={() => onAction('confirm')}>Подтвердить</Btn>
@@ -227,6 +222,9 @@ export function DealCard({ d, now, busy, onOpen, onAction, onContact }: {
             <Btn tone="success" disabled={busy} onClick={() => onAction('confirm')}>Подтвердить вручную</Btn>
             <Btn tone="contact" onClick={onContact}>Связаться</Btn>
           </>
+        )}
+        {d.section !== 'requisite' && d.enteredAt && !d.requisiteOffAt && !d.finishedAt && (
+          <Btn tone="ghost" disabled={busy} onClick={() => onAction('requisite_off')}>ОТКЛЮЧИЛ</Btn>
         )}
       </div>
     </div>

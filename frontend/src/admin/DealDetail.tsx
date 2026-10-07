@@ -127,7 +127,7 @@ export function DealDetail({ api, id, onClose, onChanged, onOpenUser, onOpenDeal
       </div>
 
       {/* State banners */}
-      {d.status === 'entered' && !d.requisiteOffAt && (
+      {d.enteredAt && !d.requisiteOffAt && !d.finishedAt && (
         <div className="adm-banner info">
           <b>Отключите приём сделок для реквизита {d.requisite}.</b>
           <span>После отключения нажмите «ОТКЛЮЧИЛ».</span>

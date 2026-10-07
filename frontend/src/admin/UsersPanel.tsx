@@ -32,13 +32,13 @@ export function UsersPanel({ api, userId, onOpenUser, onOpenDeal, onOpenJournal 
           <button key={u.id} className="ab-trow user" onClick={() => onOpenUser(u.id)}>
             <span className="ab-tno">{u.username ? `@${u.username}` : u.firstName}<small>ID {u.telegramId}</small></span>
             <span>{fmtMicroExact(u.availableMicro)}<small>заморожено {fmtMicroExact(u.frozenMicro)}</small></span>
-            <span>{u.activeDeals ? `${u.activeDeals} активн.` : 'нет активных'}</span>
+            <span>{u.activeDeals ? `Активных сделок: ${u.activeDeals}` : 'Нет активных сделок'}</span>
             <span className="ab-flags">
               {u.supportLocked && <span className="ab-flag">Заблокирован до связи</span>}
               {u.blocked && <span className="ab-flag">Вывод запрещён</span>}
               {u.obligationsLeftMicro > 0 && <span className="ab-flag warn">Тень {fmtMicroExact(u.obligationsLeftMicro)}</span>}
             </span>
-            <span className="adm-muted small">{fmtAgo(u.lastSeenAt)}</span>
+            <span className="adm-muted small">был {fmtAgo(u.lastSeenAt)}</span>
           </button>
         ))}
       </div>

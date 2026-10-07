@@ -160,6 +160,15 @@ describe('reminders and inactivity', () => {
     expect(svc.row(w.id)!.status).toBe('inactive');
   });
 
+  it('sends no buttons to a user locked until they contact support', async () => {
+    const w = enteredDeal();
+    svc.setSupportLock(user.id, true, 'ix_support');
+    now += REMINDER_INTERVAL_MS;
+    await svc.tick();
+    expect(messenger.sent).toHaveLength(0);
+    expect(svc.adminGet(w.id).reminders[0]).toMatchObject({ n: 1, delivered: false, error: 'Заблокирован до связи с поддержкой' });
+  });
+
   it('records undelivered reminders when the user blocked the bot', async () => {
     const w = enteredDeal();
     messenger.blocked = true;

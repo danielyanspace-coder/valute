@@ -195,7 +195,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
     if (held) {
       const d = { id: deductionId++, amountMicro: held, reason: reasons.join('; '), createdAt: now(), userId };
       deductions.push(d);
-      ctx.notify(userId, 'obligation_repaid', null, { deduction: { ...d, reason: cap(d.reason) } });
+      ctx.notify(userId, 'obligation_repaid', null, { deduction: { id: d.id, amountMicro: d.amountMicro, reason: d.reason, createdAt: d.createdAt } });
     }
   };
   const credit = (userId: number, micro: number) => {
@@ -447,7 +447,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
         log('admin', 'deal_closed', { userId: u.id, withdrawalId: id });
         break;
       case 'reopen':
-        Object.assign(d, { status: 'not_received', userDecision: null, userConfirmedAt: null, debitedMicro: null, finalRub: null });
+        Object.assign(d, { status: 'not_received', userDecision: null, userDecidedAt: null, userConfirmedAt: null, debitedMicro: null, finalRub: null });
         u.frozenMicro += d.amountMicro;
         log('admin', 'deal_reopened', { userId: u.id, withdrawalId: id, amountMicro: d.amountMicro });
         tell(d, 'deal_reminder');
@@ -491,10 +491,11 @@ export function createDealEngine(ctx: DealEngineCtx) {
       const due = remindersDue(d.enteredAt, t);
       if (due > d.remindersSent) {
         d.remindersSent = due;
-        const delivered = !user(d.userId).botBlockedAt;
-        d.reminders.push({ n: due, at: t, delivered, error: delivered ? null : 'Пользователь заблокировал бота' });
-        log('system', 'reminder_sent', { userId: d.userId, withdrawalId: d.id, data: { n: due, delivered } });
-        ctx.notify(d.userId, 'deal_reminder', d.id);
+        const owner = user(d.userId);
+        const error = owner.supportLockedAt ? 'Заблокирован до связи с поддержкой' : owner.botBlockedAt ? 'Пользователь заблокировал бота' : null;
+        d.reminders.push({ n: due, at: t, delivered: !error, error });
+        log('system', 'reminder_sent', { userId: d.userId, withdrawalId: d.id, data: { n: due, delivered: !error, error } });
+        if (!owner.supportLockedAt) ctx.notify(d.userId, 'deal_reminder', d.id);
       }
     }
   };

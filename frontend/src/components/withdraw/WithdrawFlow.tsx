@@ -288,7 +288,7 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
           <div className="summary">
             <div className="summary-amount">{fmtRub0(amountRub)}</div>
             <div className="muted">{destinationText}</div>
-            <div className="summary-freeze">Спишется {fmtMicro(amountMicro)} по курсу {fmtRub(payoutRate)}</div>
+            <div className="summary-freeze">Заморозится {fmtMicro(amountMicro)} по курсу {fmtRub(payoutRate)}</div>
           </div>
           <div className="rules">
             <Rule icon={<IconClock size={18} />} title="Подтвердите получение">
@@ -406,7 +406,7 @@ function AmountField(props: {
       </div>
       <div className="amount-meta">
         <span>Доступно {fmtRub0(maxRub)}</span>
-        <span>{props.amountMicro ? `Спишется ${fmtMicro(props.amountMicro)}` : props.payoutRate ? `1 USDT = ${fmtRub(props.payoutRate)}` : ''}</span>
+        <span>{props.amountMicro ? `Заморозится ${fmtMicro(props.amountMicro)}` : props.payoutRate ? `1 USDT = ${fmtRub(props.payoutRate)}` : ''}</span>
       </div>
       <span className="field-hint">Сумма кратна 1000 ₽, минимум {rub.format(MIN_PAYOUT_RUB)} ₽</span>
     </Field>

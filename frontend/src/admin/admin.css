@@ -353,3 +353,35 @@ body.ab-noscroll { overflow: hidden; }
   .ab-sections .ab-hint { flex-basis: 100%; }
 }
 .adm-v.mono.big { white-space: nowrap; word-break: normal; font-size: 15px; }
+
+/* ---------- polish ---------- */
+.adm-grid { align-items: start; }
+.adm-kv { grid-template-columns: minmax(96px, 38%) minmax(0, 1fr) auto; }
+.adm-v { word-break: normal; overflow-wrap: anywhere; }
+.adm-v.mono.big { white-space: normal; word-break: keep-all; overflow-wrap: normal; font-size: 15px; }
+.adm-copy { align-self: center; }
+.ab-user-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ab-user-actions .adm-btn, .ab-user-actions .adm-btn.small { height: 36px; margin-top: 0; padding: 0 12px; font-size: 12.5px; }
+.ab-user-actions .adm-adjust { flex-basis: 100%; }
+.ab-search { width: 100%; }
+.ab-page > .ab-search { flex: none; }
+.ab-filters .ab-search { flex: 1 1 260px; width: auto; }
+.ab-dates { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.ab-file { display: flex; align-items: center; gap: 12px; }
+.ab-file .adm-btn { display: inline-flex; align-items: center; cursor: pointer; }
+.ab-trow > span { align-items: flex-start; text-align: left; }
+.ab-trow > .ab-chip { justify-self: end; }
+.ab-trow .ab-flags { flex-direction: row !important; flex-wrap: wrap; }
+.ab-trow.user { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.2fr) 120px; }
+.ab-trow.user > span:last-child { align-items: flex-end; text-align: right; }
+@media (max-width: 900px) {
+  .ab-filters { display: grid; grid-template-columns: 1fr 1fr; }
+  .ab-filters .ab-search { grid-column: 1 / -1; }
+  .ab-filters select, .ab-filters .ab-small-input { width: 100%; }
+  .ab-dates { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1fr; }
+  .ab-date input { flex: 1; min-width: 0; width: 100%; }
+  .ab-trow > .ab-chip { justify-self: start; }
+  .ab-trow.user { grid-template-columns: 1fr auto; }
+  .ab-trow.user > span:last-child { align-items: flex-start; text-align: left; }
+}
+.ab-user-actions .adm-btn { flex: 1 1 auto; justify-content: center; }
