@@ -19,6 +19,8 @@ interface TgWebApp {
   isVersionAtLeast(v: string): boolean;
   setHeaderColor(color: string): void;
   setBackgroundColor(color: string): void;
+  setBottomBarColor?(color: string): void;
+  colorScheme?: 'light' | 'dark';
   disableVerticalSwipes?(): void;
   showScanQrPopup(params: { text?: string }, cb?: (text: string) => boolean | void): void;
   closeScanQrPopup(): void;
@@ -53,6 +55,14 @@ export function initTelegram(bg: string): void {
     tg.setBackgroundColor(bg);
   }
   if (tg.isVersionAtLeast('7.7')) tg.disableVerticalSwipes?.();
+}
+
+/** Paints Telegram's own header and background to match the current theme. */
+export function setTelegramColors(bg: string): void {
+  if (!tg?.isVersionAtLeast('6.1')) return;
+  tg.setHeaderColor(bg);
+  tg.setBackgroundColor(bg);
+  if (tg.isVersionAtLeast('7.10')) tg.setBottomBarColor?.(bg);
 }
 
 export function haptic(style: 'light' | 'medium' = 'light'): void {

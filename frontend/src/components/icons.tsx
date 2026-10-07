@@ -32,6 +32,15 @@ export const IconHeadset = (p: P) => (
 export const IconHelp = (p: P) => (
   <svg {...base(p)}><circle cx="12" cy="12" r="9.5" /><path d="M9.5 9.2a2.6 2.6 0 0 1 5 .9c0 1.8-2.5 2.2-2.5 3.9M12 17.2v.01" /></svg>
 );
+export const IconMoon = (p: P) => (
+  <svg {...base(p)}><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" /></svg>
+);
+export const IconSun = (p: P) => (
+  <svg {...base(p)}>
+    <circle cx="12" cy="12" r="4" />
+    <path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4" />
+  </svg>
+);
 export const IconQr = (p: P) => (
   <svg {...base(p)}>
     <rect x="3.5" y="3.5" width="6" height="6" rx="1.5" /><rect x="14.5" y="3.5" width="6" height="6" rx="1.5" />

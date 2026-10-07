@@ -30,11 +30,13 @@ import { api } from './lib/backend';
 import { parseQr, type ParsedQr } from './lib/qr';
 import { canUseNativeQr, haptic, hapticNotify, openTelegramChat, tg } from './lib/telegram';
 import { readFlag, usePolling, writeFlag } from './lib/useInterval';
+import { useTheme } from './lib/theme';
 
 const RATE_REFRESH_MS = 15_000;
 const ACCOUNT_REFRESH_MS = 10_000;
 
 export function App() {
+  const [theme, toggleTheme] = useTheme();
   const [rate, setRate] = useState<WalletRate | null>(null);
   const [rateError, setRateError] = useState(false);
   const [coins, setCoins] = useState<MarketCoin[]>([]);
@@ -131,6 +133,8 @@ export function App() {
           onSupport={() => (support ? openTelegramChat(support) : setSoon('Поддержка'))}
           onHelp={() => { setTab('profile'); window.scrollTo(0, 0); }}
           onProfile={() => setTab('profile')}
+          theme={theme}
+          onToggleTheme={() => { haptic(); toggleTheme(); }}
         />
 
         {tab === 'home' && (

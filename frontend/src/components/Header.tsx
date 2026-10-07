@@ -4,7 +4,7 @@ export interface HeaderUser {
   username?: string | null;
   photoUrl?: string | null;
 }
-import { IconHeadset, IconHelp } from './icons';
+import { IconHeadset, IconHelp, IconMoon, IconSun } from './icons';
 
 interface Props {
   user: HeaderUser | null;
@@ -12,9 +12,11 @@ interface Props {
   onSupport: () => void;
   onHelp: () => void;
   onProfile: () => void;
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
 }
 
-export function Header({ user, supportUnread, onSupport, onHelp, onProfile }: Props) {
+export function Header({ user, supportUnread, onSupport, onHelp, onProfile, theme, onToggleTheme }: Props) {
   const name = user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : '';
   const initials = name.slice(0, 1).toUpperCase() || '·';
   return (
@@ -35,6 +37,14 @@ export function Header({ user, supportUnread, onSupport, onHelp, onProfile }: Pr
           {supportUnread > 0 && <span className="badge">{supportUnread > 99 ? '99+' : supportUnread}</span>}
         </button>
         <button className="icon-btn" onClick={onHelp} aria-label="Помощь"><IconHelp size={18} /></button>
+        <button
+          className="icon-btn theme-btn"
+          onClick={onToggleTheme}
+          aria-label={theme === 'dark' ? 'Включить светлую тему' : 'Включить тёмную тему'}
+          title={theme === 'dark' ? 'Светлая тема' : 'Тёмная тема'}
+        >
+          {theme === 'dark' ? <IconMoon size={18} /> : <IconSun size={18} />}
+        </button>
       </div>
     </header>
   );
