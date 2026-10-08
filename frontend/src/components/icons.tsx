@@ -65,20 +65,13 @@ export const IconImage = (p: P) => (
   <svg {...base(p)}><rect x="3" y="3" width="18" height="18" rx="3" /><circle cx="9" cy="9" r="2" /><path d="m21 15-5-5L5 21" /></svg>
 );
 
-/** Brand mark: two crossed blades, as on the card. */
+/** Brand mark: a folded "C". White on dark; `.logo-dark` surfaces switch it via --logo-fg. */
+export const LOGO_BODY = 'M12.8 1.4H30.8L36.8 7.9H13.4V29.6H36.8L27.9 38.6H12.4L3 29.6V11.2Z';
+export const LOGO_FOLDS = 'M13.4 8 8.5 12.6 13.4 17.5ZM13.4 23.4 8.5 28.3 13.4 33.8Z';
 export const LogoX = ({ size = 36 }: { size?: number }) => (
-  <svg width={size} height={size} viewBox="0 0 40 40" fill="none">
-    <defs>
-      <linearGradient id="lx-a" x1="0" y1="0" x2="40" y2="40">
-        <stop offset="0" stopColor="#f4f6fb" /><stop offset="1" stopColor="#8d96a8" />
-      </linearGradient>
-      <linearGradient id="lx-b" x1="40" y1="0" x2="0" y2="40">
-        <stop offset="0" stopColor="#dfe6ff" /><stop offset="1" stopColor="#5b6bff" />
-      </linearGradient>
-    </defs>
-    <path d="M4 3c9 4 18 14 32 34-10-5-19-14-32-34Z" fill="url(#lx-a)" />
-    <path d="M36 3C27 9 20 16 15 22l3 4C23 18 29 10 36 3Z" fill="url(#lx-b)" />
-    <path d="M4 37c4-6 7-9 9-11l2.5 3.5C12 32 8 35 4 37Z" fill="url(#lx-b)" />
+  <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden>
+    <path d={LOGO_BODY} fill="var(--logo-fg, #fff)" />
+    <path d={LOGO_FOLDS} fill="var(--logo-fold, #c3c4c6)" />
   </svg>
 );
 export const IconChevronLeft = (p: P) => (<svg {...base(p)}><path d="m15 6-6 6 6 6" /></svg>);

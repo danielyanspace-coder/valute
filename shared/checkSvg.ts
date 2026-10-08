@@ -4,10 +4,10 @@
 export const CHECK_IMAGE_WIDTH = 1200;
 export const CHECK_IMAGE_HEIGHT = 800;
 
+// Brand mark, the folded "C" (same paths as LogoX in the app).
 const LOGO =
-  '<path d="M4 3c9 4 18 14 32 34-10-5-19-14-32-34Z" fill="url(#ck-la)"/>' +
-  '<path d="M36 3C27 9 20 16 15 22l3 4C23 18 29 10 36 3Z" fill="url(#ck-lb)"/>' +
-  '<path d="M4 37c4-6 7-9 9-11l2.5 3.5C12 32 8 35 4 37Z" fill="url(#ck-lb)"/>';
+  '<path d="M12.8 1.4H30.8L36.8 7.9H13.4V29.6H36.8L27.9 38.6H12.4L3 29.6V11.2Z" fill="#fff"/>' +
+  '<path d="M13.4 8 8.5 12.6 13.4 17.5ZM13.4 23.4 8.5 28.3 13.4 33.8Z" fill="#c3c4c6"/>';
 
 const TETHER =
   '<path d="M6 6.5h12v2.6h-4.6v2c2.6.2 4.6.8 4.6 1.5s-2 1.3-4.6 1.5V19h-2.8v-4.9C8 13.9 6 13.3 6 12.6s2-1.3 4.6-1.5v-2H6Zm4.6 5.5c-1.8.1-3.1.4-3.1.6s1.9.7 4.5.7 4.5-.4 4.5-.7-1.3-.5-3.1-.6v1.2h-2.8Z" fill="#fff"/>';
@@ -37,7 +37,7 @@ export function checkSvg(amount: string, fontFamily = 'Manrope', radius = 56): s
     Array.from({ length: 9 }, (_, c) => {
       const x = c * 150 + (r % 2) * 75 - 20;
       const y = r * 150 - 30;
-      return `<g transform="translate(${x} ${y}) scale(1.4) rotate(-12 20 20)" opacity="0.045">${LOGO.replace(/url\(#ck-l[ab]\)/g, '#fff')}</g>`;
+      return `<g transform="translate(${x} ${y}) scale(1.4) rotate(-12 20 20)" opacity="0.045">${LOGO.replace('#c3c4c6', '#fff')}</g>`;
     }).join(''),
   ).join('');
 
@@ -56,8 +56,6 @@ export function checkSvg(amount: string, fontFamily = 'Manrope', radius = 56): s
     <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.07"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
   </linearGradient>
   <linearGradient id="ck-coin" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3fc6a0"/><stop offset="1" stop-color="#1a9f7a"/></linearGradient>
-  <linearGradient id="ck-la" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f4f6fb"/><stop offset="1" stop-color="#8d96a8"/></linearGradient>
-  <linearGradient id="ck-lb" x1="40" y1="0" x2="0" y2="40" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#dfe6ff"/><stop offset="1" stop-color="#5b6bff"/></linearGradient>
   <clipPath id="ck-clip"><rect width="${W}" height="${H}" rx="${radius}"/></clipPath>
 </defs>
 <g clip-path="url(#ck-clip)">

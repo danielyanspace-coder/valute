@@ -983,3 +983,5 @@ button.card:active { transform: scale(0.98); border-color: var(--border-strong);
 .usdt-summary { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .usdt-address { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 1.5; text-align: center; word-break: break-all; color: var(--text-3); }
 .usdt-address .hl { color: var(--text); font-weight: 700; }
+/* The logo is white by default; on white surfaces of the light theme it turns dark. */
+:root[data-theme='light'] .promo-logo { --logo-fg: #11141a; --logo-fold: #8d929c; }
