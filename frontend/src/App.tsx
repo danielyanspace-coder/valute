@@ -7,6 +7,8 @@ import { BottomNav, type Tab } from './components/BottomNav';
 import { ConfirmBanner } from './components/ConfirmBanner';
 import { ContactLock } from './components/ContactLock';
 import { DealLock } from './components/DealLock';
+import { LegalFooter, LegalSheet } from './components/LegalSheet';
+import type { LegalKind } from '../../shared/legal';
 import { CryptoList } from './components/CryptoList';
 import { Header } from './components/Header';
 import { HistoryScreen } from './components/HistoryScreen';
@@ -56,6 +58,7 @@ export function App() {
   const [openDeposit, setOpenDeposit] = useState<DepositDto | null>(null);
   const [openWithdrawal, setOpenWithdrawal] = useState<number | null>(null);
   const [openUsdtPayout, setOpenUsdtPayout] = useState<number | null>(null);
+  const [legal, setLegal] = useState<LegalKind | null>(null);
   // The bot's "other amount" button opens the Mini App with ?deal=<id>.
   const [otherAmountDeal, setOtherAmountDeal] = useState<number | null>(() => {
     const id = Number(new URLSearchParams(window.location.search).get('deal'));
@@ -164,6 +167,7 @@ export function App() {
                 Демо-версия · курсы Rapira на {new Date(rate.updatedAt).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' })}
               </p>
             )}
+            <LegalFooter onOpen={setLegal} />
           </>
         )}
 
@@ -215,6 +219,7 @@ export function App() {
         startWithOtherAmount={otherAmountDeal !== null && otherAmountDeal === openWithdrawal}
       />
       <NotificationHost supportUsername={support} onOpenWithdrawal={openW} onAnything={refreshAccount} onOpenOrder={setOpenOrder} onOpenUsdtPayout={openU} />
+      <LegalSheet kind={legal} supportUsername={support} onClose={() => setLegal(null)} />
       <UsdtPayoutSheet id={openUsdtPayout} onClose={() => setOpenUsdtPayout(null)} supportUsername={support} />
       {me?.contactLock && <ContactLock supportUsername={support} />}
       {!me?.contactLock && me?.answerLock && openWithdrawal !== me.answerLock.withdrawalId && (

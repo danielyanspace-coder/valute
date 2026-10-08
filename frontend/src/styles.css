@@ -985,3 +985,15 @@ button.card:active { transform: scale(0.98); border-color: var(--border-strong);
 .usdt-address .hl { color: var(--text); font-weight: 700; }
 /* The logo is white by default; on white surfaces of the light theme it turns dark. */
 :root[data-theme='light'] .promo-logo { --logo-fg: #11141a; --logo-fold: #8d929c; }
+
+/* ---------- Terms and privacy ---------- */
+.legal-footer { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 16px 8px; font-size: 12px; color: var(--text-3); }
+.legal-footer button { background: none; border: 0; padding: 4px 2px; font: inherit; color: var(--text-2); cursor: pointer; text-decoration: underline; text-decoration-color: var(--border-strong); text-underline-offset: 3px; }
+.legal-copy { width: 100%; text-align: center; font-size: 11px; color: var(--text-3); }
+.legal { display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; line-height: 1.55; color: var(--text-2); padding-bottom: 12px; }
+.legal p { margin: 0; }
+.legal section { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.legal h3 { margin: 0; font-size: 15px; color: var(--text); }
+.legal-updated { font-size: 12px; color: var(--text-3); }
+.legal-li { position: relative; padding-left: 16px; }
+.legal-li::before { content: ''; position: absolute; left: 4px; top: 0.62em; width: 5px; height: 5px; border-radius: 50%; background: var(--text-3); }
