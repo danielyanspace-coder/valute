@@ -18,6 +18,7 @@ import { DepositService, type DepositServiceOptions } from './deposits/depositSe
 import { USDT_MICRO } from '../../shared/payout.js';
 import { TronGridClient } from './deposits/tronClient.js';
 import { UsdtPayoutService } from './usdtPayouts/usdtPayoutService.js';
+import { StatsService } from './stats/statsService.js';
 import { WithdrawalService } from './withdrawals/withdrawalService.js';
 import { TransferService } from './transfers/transferService.js';
 import { TelegramApi, WalletBot } from './bot/bot.js';
@@ -89,6 +90,7 @@ const app = buildApp({
   depositMinUsdt: config.depositMinUsdt,
   deposits,
   usdtPayouts,
+  stats: new StatsService(db),
   audit,
   obligations,
   broadcasts,

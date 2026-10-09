@@ -316,6 +316,56 @@ export interface AdminUsdtPayoutDto extends UsdtPayoutDto {
   balanceBeforeMicro: number;
 }
 
+// ---------- Admin statistics ----------
+
+export interface AdminStatsPeriod {
+  label: string;
+  from: number;
+  to: number;
+  /** Ruble payouts that reached the user (confirmed or closed). */
+  payoutRub: number;
+  payoutMicro: number;
+  payoutCount: number;
+  /** Different users who got a ruble payout. */
+  payoutUsers: number;
+  /** From request to payout, minutes. */
+  avgDealMinutes: number | null;
+  /** From "entered the deal" to the user's "received", minutes. */
+  avgResponseMinutes: number | null;
+  dealsCreated: number;
+  dealsCancelled: number;
+  usdtPayoutCount: number;
+  usdtPayoutMicro: number;
+  usdtFeesMicro: number;
+  depositCount: number;
+  depositMicro: number;
+  ordersCount: number;
+  ordersRub: number;
+  transferCount: number;
+  transferMicro: number;
+  newUsers: number;
+}
+
+export interface AdminStatsDto {
+  serverNow: number;
+  /** Today, yesterday, 7 days, 30 days (Moscow time). */
+  periods: AdminStatsPeriod[];
+  /** Ruble payouts per day, last 14 days, oldest first. */
+  days: { day: number; payoutRub: number; payoutCount: number }[];
+  now: {
+    activeDeals: number;
+    dealsByStatus: Record<string, number>;
+    usdtPayoutsWaiting: number;
+    depositsHeld: number;
+    usersTotal: number;
+    /** All users' spendable balances: what the service owes. */
+    availableMicro: number;
+    frozenMicro: number;
+  };
+  /** Biggest ruble payout users of the last 7 days. */
+  topUsers: { id: number; username: string | null; firstName: string; deals: number; rub: number }[];
+}
+
 export interface AdminUsdtPayoutCounts {
   new: number;
   sent: number;

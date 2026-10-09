@@ -12,6 +12,7 @@ import { JournalPanel } from './JournalPanel';
 import { ObligationsPanel } from './ObligationsPanel';
 import { OrdersPanel } from './OrdersPanel';
 import { UsdtPayoutsPanel } from './UsdtPayoutsPanel';
+import { StatsPanel } from './StatsPanel';
 import { UsersPanel } from './UsersPanel';
 import './admin.css';
 
@@ -38,11 +39,12 @@ export function AdminApp() {
   return <Shell api={adminApi(token)} onLogout={IS_DEMO ? undefined : () => { writeToken(''); setToken(''); }} />;
 }
 
-type Section = 'deals' | 'usdt' | 'archive' | 'users' | 'obligations' | 'journal' | 'broadcasts' | 'orders' | 'deposits';
+type Section = 'deals' | 'usdt' | 'stats' | 'archive' | 'users' | 'obligations' | 'journal' | 'broadcasts' | 'orders' | 'deposits';
 
 const SECTIONS: { id: Section; label: string }[] = [
   { id: 'deals', label: 'Сделки' },
   { id: 'usdt', label: 'Вывод USDT' },
+  { id: 'stats', label: 'Статистика' },
   { id: 'archive', label: 'Архив' },
   { id: 'users', label: 'Пользователи' },
   { id: 'obligations', label: 'Теневые заморозки' },
@@ -98,6 +100,7 @@ function Shell({ api, onLogout }: { api: AdminApi; onLogout?: () => void }) {
       {section === 'journal' && <JournalPanel api={api} userId={journalUser} onClearUser={() => setJournalUser(null)} onOpenDeal={setDeal} onOpenUser={openUser} />}
       {section === 'broadcasts' && <BroadcastsPanel api={api} />}
       {section === 'orders' && <OrdersPanel api={api} top={null} />}
+      {section === 'stats' && <StatsPanel api={api} onOpenUser={openUser} />}
       {section === 'usdt' && <UsdtPayoutsPanel api={api} onOpenUser={openUser} />}
       {section === 'deposits' && <DepositsPanel api={api} top={null} />}
 

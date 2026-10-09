@@ -3,6 +3,7 @@ import type {
   AdminBoardDto,
   AdminBroadcastDto,
   AdminDepositAddressDto,
+  AdminStatsDto,
   AdminUsdtPayoutCounts,
   AdminUsdtPayoutDto,
   CreateUsdtPayoutRequest,
@@ -144,6 +145,7 @@ export interface AdminApi {
   deposits(status: string): Promise<{ items: AdminDepositDto[]; counts: AdminDepositCounts; enabled: boolean }>;
   depositCredit(id: number, note: string, userId?: number): Promise<AdminDepositDto>;
   depositReject(id: number, reason: string): Promise<AdminDepositDto>;
+  stats(): Promise<AdminStatsDto>;
   usdtPayouts(status: string): Promise<{ items: AdminUsdtPayoutDto[]; counts: AdminUsdtPayoutCounts }>;
   usdtPayoutSent(id: number, txId: string, force: boolean, note: string): Promise<AdminUsdtPayoutDto>;
   usdtPayoutReject(id: number, reason: string): Promise<AdminUsdtPayoutDto>;
@@ -230,6 +232,7 @@ export function httpAdminApi(token: string): AdminApi {
     orderNote: (id, text) => post(`/orders/${id}/note`, { text }),
     deposits: (status) => request('GET', `/api/admin/deposits?status=${status}`, auth),
     depositCredit: (id, note, userId) => post(`/deposits/${id}/credit`, { note, userId }),
+    stats: () => request('GET', '/api/admin/stats', auth),
     usdtPayouts: (status) => request('GET', `/api/admin/usdt-withdrawals?status=${status}`, auth),
     usdtPayoutSent: (id, txId, force, note) => post(`/usdt-withdrawals/${id}/sent`, { txId, force, note }),
     usdtPayoutReject: (id, reason) => post(`/usdt-withdrawals/${id}/reject`, { reason }),

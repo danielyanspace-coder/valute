@@ -12,6 +12,7 @@ import type { OrderService } from '../orders/orderService.js';
 import type { OrderStatus } from '../../../shared/services.js';
 import type { DepositService } from '../deposits/depositService.js';
 import type { UsdtPayoutService } from '../usdtPayouts/usdtPayoutService.js';
+import type { StatsService } from '../stats/statsService.js';
 import { AppError, type WithdrawalService } from '../withdrawals/withdrawalService.js';
 
 const CHAINS: Chain[] = ['TRON', 'BSC', 'ETH', 'TON'];
@@ -26,6 +27,7 @@ export interface AdminRouteDeps {
   orders: OrderService;
   deposits: DepositService;
   usdtPayouts: UsdtPayoutService;
+  stats: StatsService;
   audit: AuditLog;
   obligations: ObligationService;
   broadcasts: BroadcastService;
@@ -175,6 +177,8 @@ export function adminRoutes(app: FastifyInstance, deps: AdminRouteDeps) {
   app.post<{ Params: { id: string }; Body: { reason?: string } }>('/api/admin/deposits/:id/reject', async (req) =>
     deps.deposits.rejectByAdmin(Number(req.params.id), String(req.body?.reason ?? '')),
   );
+
+  app.get('/api/admin/stats', async () => deps.stats.get());
 
   // USDT TRC-20 withdrawals sent by hand.
   app.get<{ Querystring: { status?: string } }>('/api/admin/usdt-withdrawals', async (req) => {

@@ -3,6 +3,8 @@
 // included, can be clicked through without a server or Telegram.
 import type {
   AdminDepositAddressDto,
+  AdminStatsDto,
+  AdminStatsPeriod,
   AdminUsdtPayoutDto,
   UsdtPayoutDto,
   AdminDepositCounts,
@@ -534,7 +536,62 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
     notify(me.id, 'transfer_received', null, { transfer: transferDto(t, me.id) });
   }, 4000);
 
+  // Statistics: real demo deals on top of a made-up history, so the chart has something to show.
+  const statsDto = (): AdminStatsDto => {
+    const H = 3_600_000;
+    const dayOf = (t: number) => Math.floor((t + 3 * H) / DAY) * DAY - 3 * H;
+    const today = dayOf(now());
+    const paid = engine.deals.filter((d) => d.status === 'completed' || d.status === 'user_confirmed');
+    const paidAt = (d: (typeof paid)[number]) => d.finishedAt ?? d.userConfirmedAt ?? d.userDecidedAt ?? d.createdAt;
+    const history = (i: number) => (i === 0 ? { rub: 0, n: 0 } : { rub: Math.round((260 + 55 * (14 - i) + ((i * 7919) % 13) * 31) * 1000), n: 14 + ((i * 31) % 9) + (14 - i) * 2 });
+    const days = Array.from({ length: 14 }, (_, k) => {
+      const i = 13 - k;
+      const from = today - i * DAY;
+      const real = paid.filter((d) => paidAt(d) >= from && paidAt(d) < from + DAY);
+      const fake = history(i);
+      return { day: from, payoutRub: fake.rub + real.reduce((a, d) => a + (d.finalRub ?? d.amountRub), 0), payoutCount: fake.n + real.length };
+    });
+    const period = (label: string, from: number, to: number): AdminStatsPeriod => {
+      const ds = days.filter((d) => d.day >= from && d.day < to);
+      const rub = ds.reduce((a, d) => a + d.payoutRub, 0);
+      const n = ds.reduce((a, d) => a + d.payoutCount, 0);
+      const created = engine.deals.filter((d) => d.createdAt >= from && d.createdAt < to);
+      const span = Math.max(1, Math.round((Math.min(to, now()) - from) / DAY));
+      const sent = payouts.filter((x) => x.status === 'sent' && (x.finishedAt ?? 0) >= from && (x.finishedAt ?? 0) < to);
+      const dep = deposits.filter((d) => d.status === 'credited' && (d.finishedAt ?? 0) >= from && (d.finishedAt ?? 0) < to);
+      return {
+        label, from, to, payoutRub: rub, payoutMicro: Math.round((rub / snapshot.rate.walletRate) * USDT_MICRO), payoutCount: n,
+        payoutUsers: Math.max(n ? 1 : 0, Math.round(n / 2.6)), avgDealMinutes: n ? 17.4 : null, avgResponseMinutes: n ? 3.1 : null,
+        dealsCreated: n + created.length, dealsCancelled: Math.round(n / 20),
+        usdtPayoutCount: sent.length + span * 2, usdtPayoutMicro: sent.reduce((a, x) => a + x.amountMicro, 0) + span * 340 * USDT_MICRO,
+        usdtFeesMicro: (sent.length + span * 2) * USDT_FEE,
+        depositCount: dep.length + span * 9, depositMicro: dep.reduce((a, d) => a + d.amountMicro, 0) + span * 3900 * USDT_MICRO,
+        ordersCount: orders.filter((o) => o.status === 'paid').length + span, ordersRub: span * 4200,
+        transferCount: transfers.length + span * 6, transferMicro: transfers.reduce((a, t) => a + t.amountMicro, 0) + span * 410 * USDT_MICRO,
+        newUsers: span * 11,
+      };
+    };
+    const active = engine.deals.filter((d) => d.status !== 'completed' && d.status !== 'cancelled');
+    const byStatus: Record<string, number> = {};
+    for (const d of active) byStatus[d.status] = (byStatus[d.status] ?? 0) + 1;
+    return {
+      serverNow: now(),
+      periods: [period('Сегодня', today, now() + 1), period('Вчера', today - DAY, today), period('7 дней', today - 6 * DAY, now() + 1), period('30 дней', today - 29 * DAY, now() + 1)],
+      days,
+      now: {
+        activeDeals: active.length, dealsByStatus: byStatus, usdtPayoutsWaiting: payouts.filter((x) => x.status === 'new').length,
+        depositsHeld: deposits.filter((d) => d.status === 'held').length, usersTotal: 1240 + users.length,
+        availableMicro: users.reduce((a, u) => a + u.availableMicro, 0) + 48_200 * USDT_MICRO, frozenMicro: users.reduce((a, u) => a + u.frozenMicro, 0),
+      },
+      topUsers: [7, 4, 9, 5, 2].map((id, i) => {
+        const u = users.find((x) => x.id === id)!;
+        return { id, username: u.username, firstName: u.firstName, deals: 31 - i * 5, rub: (1_240 - i * 210) * 1000 };
+      }),
+    };
+  };
+
   const admin: AdminApi = {
+    stats: () => delay(statsDto()),
     board: () => delay(engine.admin.board()),
     archive: (q) => delay(engine.admin.archive(q)),
     deal: (id) => delay(engine.admin.deal(id)),
