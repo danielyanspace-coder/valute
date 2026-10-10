@@ -18,6 +18,8 @@ function num(name: string, fallback: number): number {
 
 export const config = {
   port: num('PORT', 8080),
+  /** Only Caddy on the same machine talks to the app; never expose it directly. */
+  host: process.env.HOST || '127.0.0.1',
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? '',
   rateWalletMarkupPercent: num('RATE_WALLET_MARKUP_PERCENT', 5),
   rateQrPayDiscountPercent: num('RATE_QR_PAY_DISCOUNT_PERCENT', 5),

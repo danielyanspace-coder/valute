@@ -10,7 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@fastify/cors": "^11.3.0",
+    "@fastify/rate-limit": "^10.3.0",
     "@fastify/static": "^10.1.5",
     "@noble/curves": "^2.4.0",
     "@noble/hashes": "^2.4.0",

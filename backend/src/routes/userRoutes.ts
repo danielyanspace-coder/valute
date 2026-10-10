@@ -201,7 +201,8 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     deps.orders.toUserDto(deps.orders.getForUser(req.user!.id, Number(req.params.id))),
   );
 
-  app.get<{ Querystring: { username?: string } }>('/api/users/lookup', async (req) => {
+  // Capped so the user base cannot be enumerated by username.
+  app.get<{ Querystring: { username?: string } }>('/api/users/lookup', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (req) => {
     const u = deps.transfers.findRecipient(req.user!, req.query.username ?? '');
     return deps.transfers.person(u.id);
   });

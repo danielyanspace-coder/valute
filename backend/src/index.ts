@@ -19,6 +19,7 @@ import { USDT_MICRO } from '../../shared/payout.js';
 import { TronGridClient } from './deposits/tronClient.js';
 import { UsdtPayoutService } from './usdtPayouts/usdtPayoutService.js';
 import { StatsService } from './stats/statsService.js';
+import { AdminGuard } from './admin/adminGuard.js';
 import { WithdrawalService } from './withdrawals/withdrawalService.js';
 import { TransferService } from './transfers/transferService.js';
 import { TelegramApi, WalletBot } from './bot/bot.js';
@@ -37,6 +38,12 @@ const amlChecks: AmlCheck[] = [new TetherBlacklistCheck(config.rpc), new OfacSan
 if (config.chainalysisSanctionsApiKey) {
   amlChecks.push(new ChainalysisSanctionsCheck(config.chainalysisSanctionsApiKey));
 }
+
+if (config.allowDevAuth && process.env.NODE_ENV === 'production') {
+  // Dev auth lets anyone act as a test user without Telegram: never on a live server.
+  throw new Error('ALLOW_DEV_AUTH=true is forbidden with NODE_ENV=production');
+}
+if (!config.telegramBotToken && process.env.NODE_ENV === 'production') console.warn('TELEGRAM_BOT_TOKEN is empty: nobody can log in to the Mini App');
 
 const db = openDatabase(config.databasePath);
 const users = new UserRepo(db);
@@ -91,6 +98,13 @@ const app = buildApp({
   deposits,
   usdtPayouts,
   stats: new StatsService(db),
+  onAdminAccess: (() => {
+    const guard = new AdminGuard(db, (text) => {
+      app.log.warn({ alert: text }, 'admin access alert');
+      if (messenger && config.adminTelegramId) void messenger.send(config.adminTelegramId, text).catch(() => {});
+    });
+    return (ip: string, ok: boolean) => guard.access(ip, ok);
+  })(),
   audit,
   obligations,
   broadcasts,
@@ -133,4 +147,4 @@ if (config.telegramBotToken) {
   // Without the bot the wallet still works; checks just cannot be posted to chats.
   await bot.start().catch((err) => app.log.error({ err }, 'bot failed to start'));
 }
-await app.listen({ port: config.port, host: '0.0.0.0' });
+await app.listen({ port: config.port, host: config.host });

@@ -26,7 +26,19 @@ step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 step "System packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y git curl ca-certificates gnupg sqlite3 ufw openssl debian-keyring debian-archive-keyring apt-transport-https
+apt-get install -y git curl ca-certificates gnupg sqlite3 ufw openssl fail2ban unattended-upgrades debian-keyring debian-archive-keyring apt-transport-https
+
+step "Security updates installed automatically, SSH password guessing banned"
+dpkg-reconfigure -f noninteractive unattended-upgrades >/dev/null 2>&1 || true
+cat > /etc/fail2ban/jail.d/cryptoix.local <<'JAIL'
+[sshd]
+enabled = true
+maxretry = 5
+findtime = 10m
+bantime = 1h
+JAIL
+systemctl enable --now fail2ban >/dev/null 2>&1 || true
+systemctl restart fail2ban || true
 
 step "Swap (builds need more than 2 GB of memory)"
 if ! swapon --show | grep -q .; then
@@ -81,6 +93,7 @@ if [ ! -f "$ENV" ]; then
   cp "$APP_DIR/.env.example" "$ENV"
   setv() { sed -i "s|^$1=.*|$1=$2|" "$ENV"; grep -q "^$1=" "$ENV" || echo "$1=$2" >> "$ENV"; }
   setv PORT "$PORT"
+  setv HOST 127.0.0.1
   setv ALLOW_DEV_AUTH false
   setv ADMIN_TOKEN "$(openssl rand -hex 24)"
   setv WEBAPP_URL "https://$DOMAIN"
@@ -112,6 +125,13 @@ Environment=NODE_ENV=production
 NoNewPrivileges=true
 ProtectSystem=full
 ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
 ReadWritePaths=$DATA_DIR
 
 [Install]
