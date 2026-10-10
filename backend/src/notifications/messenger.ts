@@ -13,7 +13,7 @@ export type SendResult =
 export interface SendOptions {
   /** undefined = the default "open wallet" button; [] = no buttons. */
   buttons?: InlineButton[][];
-  /** Telegram HTML formatting (broadcasts). */
+  /** Kept for callers; every message is sent as Telegram HTML now (escape user text with esc()). */
   html?: boolean;
 }
 
@@ -90,7 +90,7 @@ export class TelegramMessenger implements Messenger {
         chat_id: chatId,
         text,
         reply_markup: this.markup(opts.buttons),
-        ...(opts.html ? { parse_mode: 'HTML' } : {}),
+        parse_mode: 'HTML',
         link_preview_options: { is_disabled: true },
       });
       return this.result(chatId, r);
@@ -104,12 +104,12 @@ export class TelegramMessenger implements Messenger {
       const markup = this.markup(opts.buttons);
       let r: TgResponse<{ message_id: number; photo?: { file_id: string }[] }>;
       if (photo.fileId) {
-        r = await this.call('sendPhoto', { chat_id: chatId, photo: photo.fileId, caption, reply_markup: markup, ...(opts.html ? { parse_mode: 'HTML' } : {}) });
+        r = await this.call('sendPhoto', { chat_id: chatId, photo: photo.fileId, caption, reply_markup: markup, parse_mode: 'HTML' });
       } else {
         const form = new FormData();
         form.set('chat_id', String(chatId));
         form.set('caption', caption);
-        if (opts.html) form.set('parse_mode', 'HTML');
+        form.set('parse_mode', 'HTML');
         if (markup) form.set('reply_markup', JSON.stringify(markup));
         form.set('photo', new Blob([new Uint8Array(photo.bytes ?? [])]), 'image.jpg');
         r = await this.call('sendPhoto', form);
@@ -121,7 +121,7 @@ export class TelegramMessenger implements Messenger {
   }
 
   async editText(chatId: number, messageId: number, text: string, buttons: InlineButton[][] = []): Promise<void> {
-    await this.call('editMessageText', { chat_id: chatId, message_id: messageId, text, reply_markup: this.markup(buttons) ?? { inline_keyboard: [] } }).catch(() => {});
+    await this.call('editMessageText', { chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML', link_preview_options: { is_disabled: true }, reply_markup: this.markup(buttons) ?? { inline_keyboard: [] } }).catch(() => {});
   }
 
   async editButtons(chatId: number, messageId: number, buttons: InlineButton[][]): Promise<void> {

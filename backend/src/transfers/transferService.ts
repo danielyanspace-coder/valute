@@ -4,6 +4,7 @@ import { checkLink, cleanComment, isValidUsername, normalizeUsername, parseUsdt,
 import { transaction, type Db } from '../db/database.js';
 import type { Ledger } from '../ledger/ledger.js';
 import type { NotificationService } from '../notifications/notificationService.js';
+import { em, esc } from '../notifications/emoji.js';
 import type { UserRepo, UserRow } from '../users/userRepo.js';
 import { AppError, type WithdrawalService } from '../withdrawals/withdrawalService.js';
 
@@ -93,7 +94,7 @@ export class TransferService {
     });
     this.notifications.notify(to, 'transfer_received', {
       transferId: t.id,
-      botText: `Вы получили ${shortUsdt(amountMicro)} USDT от ${mention(sender)}${comment ? `: «${comment}»` : ''}.`,
+      botText: `${em('received')} <b>+${shortUsdt(amountMicro)} USDT</b> от ${esc(mention(sender))}${comment ? `\n${em('support')} «${esc(comment)}»` : ''}`,
     });
     return t;
   }
@@ -179,7 +180,7 @@ export class TransferService {
     });
     this.notifications.notify(result.creator, 'check_claimed', {
       checkId: c0.id,
-      botText: `Ваш чек на ${shortUsdt(c0.amount_micro)} USDT активировал ${mention(claimer)}.`,
+      botText: `${em('check')} Ваш чек на <b>${shortUsdt(c0.amount_micro)} USDT</b> активировал ${esc(mention(claimer))}.`,
     });
     // The bot replies to the claimer directly in the chat, so the in-app notice carries no bot message.
     this.notifications.notify(claimer, 'transfer_received', { transferId: result.transfer.id, botText: null });

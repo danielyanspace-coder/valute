@@ -142,7 +142,7 @@ describe('DepositService: attribution', () => {
     t.chain.verdicts.set('tx1', { state: 'confirmed', valueMicro: 25 * USDT, from: SENDER, blockNumber: 1, blockTimestamp: t.now() });
     await t.run();
     expect(t.balance(t.ann.id)).toBe(25 * USDT);
-    expect(t.sent).toEqual(['Пополнение +25 USDT зачислено на баланс.']);
+    expect(t.sent).toEqual(['💰 <b>Пополнение +25 USDT</b>\nЗачислено на баланс.']);
     expect(t.svc.current(t.ann.id)?.creditedMicro).toBe(25 * USDT);
     await t.run();
     expect(t.balance(t.ann.id)).toBe(25 * USDT);

@@ -6,6 +6,7 @@ import { transaction, type Db } from '../db/database.js';
 import { OBLIGATION_REPAY, type Ledger } from '../ledger/ledger.js';
 import type { InlineButton } from '../notifications/messenger.js';
 import type { NotificationService } from '../notifications/notificationService.js';
+import { em, esc } from '../notifications/emoji.js';
 import type { UserRepo } from '../users/userRepo.js';
 import { AppError } from '../withdrawals/withdrawalService.js';
 
@@ -199,8 +200,8 @@ const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export function holdText(heldMicro: number, reasons: string[]): string {
   return (
-    `С вашего баланса удержано ${shortUsdt(heldMicro)} USDT.\n\n` +
-    `Причина: ${reasons.join('; ')}.\n\n` +
+    `${em('hold')} <b>С вашего баланса удержано ${shortUsdt(heldMicro)} USDT</b>\n\n` +
+    `Причина: ${esc(reasons.join('; '))}.\n\n` +
     'Если вы не согласны с удержанием, свяжитесь с поддержкой.'
   );
 }

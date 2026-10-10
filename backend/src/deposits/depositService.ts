@@ -20,6 +20,7 @@ import type { AuditLog } from '../audit/auditLog.js';
 import { transaction, type Db } from '../db/database.js';
 import type { Ledger } from '../ledger/ledger.js';
 import type { NotificationService } from '../notifications/notificationService.js';
+import { em, esc } from '../notifications/emoji.js';
 import type { UserRepo } from '../users/userRepo.js';
 import { AppError } from '../withdrawals/withdrawalService.js';
 import type { IncomingTransfer, TronChain } from './tronClient.js';
@@ -437,7 +438,7 @@ export class DepositService {
     if (user) {
       this.notifications.notify(user, 'deposit_credited', {
         depositId: row.id,
-        botText: `Пополнение +${shortUsdt(row.amount_micro)} USDT зачислено на баланс.`,
+        botText: `${em('deposit')} <b>Пополнение +${shortUsdt(row.amount_micro)} USDT</b>\nЗачислено на баланс.`,
       });
     }
     return row;

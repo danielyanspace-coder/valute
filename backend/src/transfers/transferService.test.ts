@@ -37,7 +37,7 @@ describe('direct transfers', () => {
     expect(ledger.balances(alice.id).availableMicro).toBe(37_500_000);
     expect(ledger.balances(bob.id).availableMicro).toBe(12_500_000);
     expect(notifications.unseen(bob.id).map((n) => n.type)).toEqual(['transfer_received']);
-    expect(botMessages[0]).toEqual({ tid: 200, text: 'Вы получили 12.5 USDT от @alice_ix: «за обед».' });
+    expect(botMessages[0]).toEqual({ tid: 200, text: '📥 <b>+12.5 USDT</b> от @alice_ix\n💬 «за обед»' });
     // idempotent
     svc.sendDirect(alice, { username: 'bobthebuilder', amount: '12.5', requestId: 'r1' });
     expect(ledger.balances(bob.id).availableMicro).toBe(12_500_000);
@@ -63,7 +63,7 @@ describe('checks', () => {
     expect(transfer.kind).toBe('check');
     expect(ledger.balances(alice.id)).toEqual({ availableMicro: 40 * U, frozenMicro: 0 });
     expect(ledger.balances(bob.id).availableMicro).toBe(10 * U);
-    expect(botMessages.map((m) => m.text)).toEqual(['Ваш чек на 10 USDT активировал @BobTheBuilder.']);
+    expect(botMessages.map((m) => m.text)).toEqual(['🎟 Ваш чек на <b>10 USDT</b> активировал @BobTheBuilder.']);
 
     const carol = users.upsertFromTelegram({ id: 300, first_name: 'Carol' });
     expect(() => svc.claim(c.code, carol)).toThrow(/уже активирован/);

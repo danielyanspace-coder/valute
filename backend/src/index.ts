@@ -20,6 +20,7 @@ import { TronGridClient } from './deposits/tronClient.js';
 import { UsdtPayoutService } from './usdtPayouts/usdtPayoutService.js';
 import { StatsService } from './stats/statsService.js';
 import { AdminGuard } from './admin/adminGuard.js';
+import { configureEmoji, em } from './notifications/emoji.js';
 import { WithdrawalService } from './withdrawals/withdrawalService.js';
 import { TransferService } from './transfers/transferService.js';
 import { TelegramApi, WalletBot } from './bot/bot.js';
@@ -44,6 +45,8 @@ if (config.allowDevAuth && process.env.NODE_ENV === 'production') {
   throw new Error('ALLOW_DEV_AUTH=true is forbidden with NODE_ENV=production');
 }
 if (!config.telegramBotToken && process.env.NODE_ENV === 'production') console.warn('TELEGRAM_BOT_TOKEN is empty: nobody can log in to the Mini App');
+
+configureEmoji(config.customEmoji, config.customEmojiIds);
 
 const db = openDatabase(config.databasePath);
 const users = new UserRepo(db);
@@ -101,7 +104,7 @@ const app = buildApp({
   onAdminAccess: (() => {
     const guard = new AdminGuard(db, (text) => {
       app.log.warn({ alert: text }, 'admin access alert');
-      if (messenger && config.adminTelegramId) void messenger.send(config.adminTelegramId, text).catch(() => {});
+      if (messenger && config.adminTelegramId) void messenger.send(config.adminTelegramId, `${em('warning')} ${text}`).catch(() => {});
     });
     return (ip: string, ok: boolean) => guard.access(ip, ok);
   })(),
@@ -142,7 +145,7 @@ await rates.start(config.ratePollMs, (err) => app.log.error({ err }, 'rate refre
 
 if (config.telegramBotToken) {
   bot = new WalletBot(new TelegramApi(config.telegramBotToken), {
-    users, ledger, transfers, withdrawals, publicUrl: config.webAppUrl, supportUsername: config.supportUsername, log: app.log,
+    users, ledger, transfers, withdrawals, publicUrl: config.webAppUrl, supportUsername: config.supportUsername, adminTelegramId: config.adminTelegramId, log: app.log,
   });
   // Without the bot the wallet still works; checks just cannot be posted to chats.
   await bot.start().catch((err) => app.log.error({ err }, 'bot failed to start'));

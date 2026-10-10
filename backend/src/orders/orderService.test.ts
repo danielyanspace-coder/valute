@@ -92,7 +92,7 @@ describe('admin statuses', () => {
     svc.reject(b.id, 'Счёт не найден');
     expect(ledger.balances(user.id)).toEqual({ availableMicro: 90 * U, frozenMicro: 0 });
     expect(notifications.unseen(user.id).map((n) => n.type)).toEqual(['order_clarify', 'order_paid', 'order_rejected']);
-    expect(bot[1].replace(/\s/g, ' ')).toBe('Парковки России: заявка #1 на 1 000 ₽ оплачена.');
+    expect(bot[1].replace(/\s/g, ' ')).toBe('✅ <b>Парковки России</b>: заявка #1 на 1 000 ₽ оплачена.');
     expect(svc.adminGet(a.id).events.map((e) => e.type)).toEqual(['created', 'clarify', 'paid']);
     expect(svc.counts()).toEqual({ pending: 0, clarify: 0, paid: 1, rejected: 1 });
   });

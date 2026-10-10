@@ -33,6 +33,7 @@ import {
 import { transaction, type Db } from '../db/database.js';
 import type { Ledger } from '../ledger/ledger.js';
 import type { NotificationService } from '../notifications/notificationService.js';
+import { em, esc } from '../notifications/emoji.js';
 import type { UserRepo, UserRow } from '../users/userRepo.js';
 import { AppError, type RequestContext, type WithdrawalService } from '../withdrawals/withdrawalService.js';
 import type { FineLookup } from './fineLookup.js';
@@ -204,7 +205,7 @@ export class OrderService {
         { userId: o.user_id, bucket: 'frozen', amountMicro: -o.amount_micro, kind: 'order_payout', refType: 'order', refId: id },
       ]);
       this.event(id, 'admin', 'paid', {});
-      this.notify(o, 'order_paid', `${SERVICE_TITLE[o.kind]}: заявка #${o.id} на ${rub(o.amount_rub)} оплачена.`);
+      this.notify(o, 'order_paid', `${em('success')} <b>${SERVICE_TITLE[o.kind]}</b>: заявка #${o.id} на ${rub(o.amount_rub)} оплачена.`);
     });
   }
 
@@ -218,7 +219,7 @@ export class OrderService {
         { userId: o.user_id, bucket: 'available', amountMicro: o.amount_micro, kind: 'order_refund', refType: 'order', refId: id },
       ]);
       this.event(id, 'admin', 'rejected', { reason: text });
-      this.notify(o, 'order_rejected', `${SERVICE_TITLE[o.kind]}: заявка #${o.id} отклонена. ${text}. USDT вернулись на баланс.`);
+      this.notify(o, 'order_rejected', `${em('cancel')} <b>${SERVICE_TITLE[o.kind]}</b>: заявка #${o.id} отклонена.\nПричина: ${esc(text)}\n${em('received')} USDT вернулись на баланс.`);
     });
   }
 
@@ -230,7 +231,7 @@ export class OrderService {
       const o = this.mustRow(id);
       this.transition(o, 'clarify', { clarify_message: text });
       this.event(id, 'admin', 'clarify', { message: text });
-      this.notify(o, 'order_clarify', `${SERVICE_TITLE[o.kind]}: по заявке #${o.id} нужно уточнение. ${text}`);
+      this.notify(o, 'order_clarify', `${em('support')} <b>${SERVICE_TITLE[o.kind]}</b>: по заявке #${o.id} нужно уточнение.\n${esc(text)}`);
       return this.row(id)!;
     });
   }

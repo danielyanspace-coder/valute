@@ -8,6 +8,7 @@ import type { TronChain } from '../deposits/tronClient.js';
 import { isTronAddress } from '../deposits/tronHd.js';
 import type { Ledger } from '../ledger/ledger.js';
 import type { NotificationService } from '../notifications/notificationService.js';
+import { em, esc } from '../notifications/emoji.js';
 import type { UserRepo, UserRow } from '../users/userRepo.js';
 import { AppError } from '../withdrawals/withdrawalService.js';
 
@@ -208,7 +209,7 @@ export class UsdtPayoutService {
     if (user) {
       this.notifications.notify(user, 'usdt_payout_sent', {
         usdtPayoutId: row.id,
-        botText: `Вывод ${shortUsdt(row.amount_micro)} USDT отправлен на адрес ${short(row.address)}.\nТранзакция: https://tronscan.org/#/transaction/${txId}`,
+        botText: `${em('success')} <b>Вывод ${shortUsdt(row.amount_micro)} USDT отправлен</b>\nАдрес: <code>${short(row.address)}</code>\n<a href="https://tronscan.org/#/transaction/${txId}">Открыть транзакцию в Tronscan</a>`,
       });
     }
     return this.toAdminDto(row);
@@ -236,7 +237,7 @@ export class UsdtPayoutService {
     if (user) {
       this.notifications.notify(user, 'usdt_payout_rejected', {
         usdtPayoutId: row.id,
-        botText: `Вывод ${shortUsdt(row.amount_micro)} USDT отклонён: ${reason}\n${shortUsdt(row.amount_micro + row.fee_micro)} USDT вернулись на баланс.`,
+        botText: `${em('cancel')} <b>Вывод ${shortUsdt(row.amount_micro)} USDT отклонён</b>\nПричина: ${esc(reason)}\n${em('received')} ${shortUsdt(row.amount_micro + row.fee_micro)} USDT вернулись на баланс.`,
       });
     }
     return this.toAdminDto(row);

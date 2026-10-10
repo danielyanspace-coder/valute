@@ -79,3 +79,18 @@ bash /opt/cryptoix/scripts/update.sh
 | Копии базы | `ls -lh /var/backups/cryptoix` |
 
 Копии базы лежат на том же сервере. Раз в неделю скачивайте свежую копию к себе (например, WinSCP), чтобы не потерять балансы, если сервер умрёт.
+
+## Анимированные эмодзи в сообщениях бота
+
+Все сообщения бота уже с обычными эмодзи и жирным шрифтом. Анимированные (как у Crypto Bot) Telegram разрешает ботам только с коллекционным username с Fragment.
+
+1. Купить username на fragment.com (оплата TON) и привязать его к боту в разделе управления username на Fragment.
+2. Найти или сделать пак эмодзи (@Stickers → `/newemojipack`, анимации .tgs или .webm 100×100).
+3. Со своего Telegram (`ADMIN_TELEGRAM_ID`) отправить боту нужные эмодзи. Бот ответит их ID.
+4. В `/opt/cryptoix/.env`:
+   ```
+   CUSTOM_EMOJI=on
+   CUSTOM_EMOJI_IDS=deposit=ID,received=ID,success=ID,cancel=ID,check=ID,warning=ID,clock=ID
+   ```
+   Ключи: deposit (пополнение), received (пришли деньги), withdraw, success, cancel, pending, clock, warning, check (чек), usdt, lock, unlock, support, hold (удержание), rocket (приветствие), gift.
+5. `systemctl restart cryptoix`. Эмодзи без ID остаются обычными.

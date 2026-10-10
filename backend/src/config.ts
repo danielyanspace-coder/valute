@@ -36,6 +36,12 @@ export const config = {
   chainalysisSanctionsApiKey: process.env.CHAINALYSIS_SANCTIONS_API_KEY ?? '',
   /** Deposits below this wait for the operator. 0 = any amount (spam dust under 0.1 USDT is always ignored). */
   depositMinUsdt: num('DEPOSIT_MIN_USDT', 0),
+  /**
+   * Animated custom emoji in bot messages. Works only after a collectible username from
+   * Fragment is attached to the bot. Ids: send the emoji to the bot from ADMIN_TELEGRAM_ID.
+   */
+  customEmoji: process.env.CUSTOM_EMOJI === 'on',
+  customEmojiIds: process.env.CUSTOM_EMOJI_IDS ?? '',
   /** USDT TRC-20 withdrawals: fee charged on top of the amount, and the smallest amount. */
   usdtWithdrawFeeUsdt: num('USDT_WITHDRAW_FEE', 5),
   usdtWithdrawMinUsdt: num('USDT_WITHDRAW_MIN', 10),

@@ -3,8 +3,9 @@ import { checkLink, CHECK_START_PREFIX, parseInlineQuery, shortUsdt } from '../.
 import type { Ledger } from '../ledger/ledger.js';
 import type { TransferService, CheckRow } from '../transfers/transferService.js';
 import type { UserRepo } from '../users/userRepo.js';
-import { reminderMessage, userCan, type UserDealAction } from '../../../shared/deals.js';
+import { userCan, type UserDealAction } from '../../../shared/deals.js';
 import { inlineMarkup, type InlineButton } from '../notifications/messenger.js';
+import { em, esc } from '../notifications/emoji.js';
 import type { WithdrawalService } from '../withdrawals/withdrawalService.js';
 
 /** Thin Bot API client. */
@@ -29,7 +30,7 @@ export class TelegramApi {
 
 interface Update {
   update_id: number;
-  message?: { chat: { id: number; type: string }; from?: TelegramUser; text?: string };
+  message?: { chat: { id: number; type: string }; from?: TelegramUser; text?: string; entities?: { type: string; custom_emoji_id?: string; offset: number; length: number }[] };
   inline_query?: { id: string; from: TelegramUser; query: string };
   chosen_inline_result?: { result_id: string; from: TelegramUser; inline_message_id?: string };
   callback_query?: CallbackQuery;
@@ -51,12 +52,14 @@ export interface BotDeps {
   publicUrl: string;
   /** Support account without "@": where locked users are sent. */
   supportUsername: string;
+  /** The operator's Telegram ID: may ask the bot for custom emoji ids. */
+  adminTelegramId?: number;
   log: { info: (o: object, m?: string) => void; error: (o: object, m?: string) => void };
 }
 
 const fmtUsd = (micro: number) =>
   `$${(micro / 1_000_000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const who = (u: { username: string | null; first_name: string }) => (u.username ? `@${u.username}` : u.first_name);
+const who = (u: { username: string | null; first_name: string }) => esc(u.username ? `@${u.username}` : u.first_name);
 
 /**
  * The wallet bot, CryptoBot-style:
@@ -112,7 +115,12 @@ export class WalletBot {
     if (u.callback_query) return this.onCallback(u.callback_query);
     if (u.inline_query) return this.onInlineQuery(u.inline_query);
     if (u.chosen_inline_result) return this.onChosen(u.chosen_inline_result);
-    if (u.message?.text && u.message.from && u.message.chat.type === 'private') return this.onMessage(u.message.from, u.message.text);
+    const m = u.message;
+    if (m?.text && m.from && m.chat.type === 'private') {
+      const custom = (m.entities ?? []).filter((e) => e.type === 'custom_emoji' && e.custom_emoji_id);
+      if (custom.length && this.deps.adminTelegramId && m.from.id === this.deps.adminTelegramId) return this.emojiIds(m.from.id, m.text, custom);
+      return this.onMessage(m.from, m.text);
+    }
   }
 
   // ---------- Private chat ----------
@@ -123,12 +131,18 @@ export class WalletBot {
     const [cmd, payload = ''] = text.trim().split(/\s+/, 2);
     if (cmd === '/start' && payload.startsWith(CHECK_START_PREFIX)) return this.claim(from.id, user.id, payload.slice(CHECK_START_PREFIX.length));
     if (cmd === '/send') return this.reply(from.id, this.howToSend());
-    return this.reply(from.id, `Crypto IX: кошелёк USDT прямо в Telegram.\n\n${this.howToSend()}`);
+    return this.reply(from.id, `${em('rocket')} <b>Crypto IX</b>: кошелёк USDT прямо в Telegram.\n\n${this.howToSend()}`);
+  }
+
+  /** Operator helper: send custom emoji to the bot, get their ids for CUSTOM_EMOJI_IDS. */
+  private emojiIds(chatId: number, text: string, entities: { custom_emoji_id?: string; offset: number; length: number }[]) {
+    const lines = entities.map((e) => `${text.slice(e.offset, e.offset + e.length)}  <code>${e.custom_emoji_id}</code>`);
+    return this.reply(chatId, `ID эмодзи для CUSTOM_EMOJI_IDS:\n${lines.join('\n')}`);
   }
 
   private howToSend(): string {
     return [
-      'Как отправить USDT без комиссии:',
+      `${em('check')} <b>Как отправить USDT без комиссии:</b>`,
       `• В любом чате напишите @${this.username} 10 и выберите «Отправить чек». Получатель нажмёт «Получить», и деньги придут ему на баланс.`,
       `• Можно добавить комментарий: @${this.username} 10 за кофе`,
       '• Или откройте кошелёк → «Перевести» и отправьте по username.',
@@ -139,11 +153,11 @@ export class WalletBot {
     const claimer = this.deps.users.get(userId)!;
     try {
       const { check, creator } = this.deps.transfers.claim(code, claimer);
-      const comment = check.comment ? `\nКомментарий: «${check.comment}»` : '';
-      await this.reply(chatId, `Вы получили ${shortUsdt(check.amount_micro)} USDT (${fmtUsd(check.amount_micro)}) от ${who(creator)}.${comment}\nСредства уже на балансе.`);
+      const comment = check.comment ? `\n${em('support')} «${esc(check.comment)}»` : '';
+      await this.reply(chatId, `${em('received')} <b>Вы получили ${shortUsdt(check.amount_micro)} USDT</b> (${fmtUsd(check.amount_micro)}) от ${who(creator)}.${comment}\nСредства уже на балансе.`);
       await this.markClaimed(check, who(claimer));
     } catch (err) {
-      await this.reply(chatId, (err as Error).message || 'Не удалось получить чек');
+      await this.reply(chatId, `${em('warning')} ${esc((err as Error).message || 'Не удалось получить чек')}`);
     }
   }
 
@@ -183,15 +197,15 @@ export class WalletBot {
 
   private checkResult(resultId: string, code: string, amountMicro: number, comment: string | null) {
     const amount = shortUsdt(amountMicro);
-    const caption = `Чек на ${amount} USDT (${fmtUsd(amountMicro)}).${comment ? `\n«${comment}»` : ''}`;
+    const caption = `${em('check')} <b>Чек на ${amount} USDT</b> (${fmtUsd(amountMicro)})${comment ? `\n${em('support')} «${esc(comment)}»` : ''}`;
     const reply_markup = { inline_keyboard: [[{ text: `Получить ${amount} USDT`, url: checkLink(this.username, code) }]] };
     const title = `Отправить чек на ${amount} USDT`;
     const description = comment ? `«${comment}»` : 'Получатель нажмёт «Получить», и USDT придут ему на баланс';
     if (this.deps.publicUrl) {
       const img = `${this.deps.publicUrl.replace(/\/$/, '')}/api/checks/image/${amount}.jpg`;
-      return { type: 'photo', id: resultId, photo_url: img, thumbnail_url: img, photo_width: 1200, photo_height: 800, title, description, caption, reply_markup };
+      return { type: 'photo', id: resultId, photo_url: img, thumbnail_url: img, photo_width: 1200, photo_height: 800, title, description, caption, parse_mode: 'HTML', reply_markup };
     }
-    return { type: 'article', id: resultId, title, description, input_message_content: { message_text: caption }, reply_markup };
+    return { type: 'article', id: resultId, title, description, input_message_content: { message_text: caption, parse_mode: 'HTML' }, reply_markup };
   }
 
   private async onChosen(r: { result_id: string; inline_message_id?: string }): Promise<void> {
@@ -208,7 +222,8 @@ export class WalletBot {
         await this.api
           .call('editMessageCaption', {
             inline_message_id: r.inline_message_id,
-            caption: `Чек не создан: ${(err as Error).message.toLowerCase()}.`,
+            caption: `${em('warning')} Чек не создан: ${esc((err as Error).message.toLowerCase())}.`,
+            parse_mode: 'HTML',
             reply_markup: { inline_keyboard: [] },
           })
           .catch(() => {});
@@ -221,7 +236,8 @@ export class WalletBot {
     await this.api
       .call('editMessageCaption', {
         inline_message_id: check.inline_message_id,
-        caption: `Чек на ${shortUsdt(check.amount_micro)} USDT активирован ${claimer}.`,
+        caption: `${em('success')} Чек на <b>${shortUsdt(check.amount_micro)} USDT</b> активирован ${claimer}.`,
+        parse_mode: 'HTML',
         reply_markup: { inline_keyboard: [] },
       })
       .catch((err) => this.deps.log.error({ err }, 'edit claimed check failed'));
@@ -243,7 +259,7 @@ export class WalletBot {
     const messageId = q.message?.message_id;
     const edit = (text: string, buttons: InlineButton[][] = []) =>
       chatId && messageId
-        ? this.api.call('editMessageText', { chat_id: chatId, message_id: messageId, text, reply_markup: inlineMarkup(buttons) }).catch(() => {})
+        ? this.api.call('editMessageText', { chat_id: chatId, message_id: messageId, text, parse_mode: 'HTML', reply_markup: inlineMarkup(buttons) }).catch(() => {})
         : Promise.resolve();
 
     if (user.support_lock_at) {
@@ -264,7 +280,7 @@ export class WalletBot {
     const sum = `${w.amount_rub.toLocaleString('ru-RU')} ₽`;
     const stale = async () => {
       await answer('Сделка уже обновилась, актуальное состояние в кошельке', true);
-      return edit(`Заявка №${w.id}: актуальное состояние смотрите в кошельке.`, this.openWallet());
+      return edit(`${em('pending')} <b>Заявка №${w.id}</b>: актуальное состояние смотрите в кошельке.`, this.openWallet());
     };
 
     try {
@@ -272,30 +288,30 @@ export class WalletBot {
         case 'dr':
           if (!can('received')) return stale();
           await answer();
-          return edit(`Вам поступила сумма ${sum} по заявке №${w.id}?`, [
+          return edit(`${em('usdt')} <b>Вам поступила сумма ${sum}</b> по заявке №${w.id}?`, [
             [{ text: `Да, ${sum} поступили`, callback: `dy:${w.id}` }],
             [{ text: 'Назад', callback: `db:${w.id}` }],
           ]);
         case 'db': {
           if (!userCan(timing, 'received', now)) return stale();
           await answer();
-          const msg = reminderMessage(Math.max(1, w.reminders_sent), w.amount_rub, w.id);
+          const msg = this.deps.withdrawals.reminder(Math.max(1, w.reminders_sent), w);
           return edit(msg.text, this.deps.withdrawals.dealButtons(w, msg.receivedLabel));
         }
         case 'dy':
           this.deps.withdrawals.userReceived(user.id, w.id);
           await answer('Спасибо! Получение подтверждено');
-          return edit(`Заявка №${w.id}: получение ${sum} подтверждено. Спасибо!`);
+          return edit(`${em('success')} <b>Заявка №${w.id}</b>: получение ${sum} подтверждено. Спасибо!`);
         case 'dn':
           this.deps.withdrawals.userNotReceived(user.id, w.id);
           await answer('С вами свяжется поддержка');
-          return edit(`Заявка №${w.id}: вы сообщили, что оплата не поступила. С вами свяжется поддержка. Если деньги придут, подтвердите получение в кошельке.`, this.openWallet());
+          return edit(`${em('support')} <b>Заявка №${w.id}</b>: вы сообщили, что оплата не поступила. С вами свяжется поддержка. Если деньги придут, подтвердите получение в кошельке.`, this.openWallet());
         case 'da':
           return answer('Откройте кошелёк и укажите сумму, которая поступила', true);
       }
     } catch (err) {
       await answer((err as Error).message || 'Не удалось выполнить действие', true);
-      return edit(`Заявка №${w.id}: актуальное состояние смотрите в кошельке.`, this.openWallet());
+      return edit(`${em('pending')} <b>Заявка №${w.id}</b>: актуальное состояние смотрите в кошельке.`, this.openWallet());
     }
   }
 
@@ -307,13 +323,14 @@ export class WalletBot {
     const s = this.deps.supportUsername;
     return this.api.call('sendMessage', {
       chat_id: chatId,
-      text: 'Свяжитесь с поддержкой. Операции в кошельке приостановлены до связи с нами.',
+      text: `${em('lock')} <b>Свяжитесь с поддержкой</b>\nОперации в кошельке приостановлены до связи с нами.`,
+      parse_mode: 'HTML',
       ...(s ? { reply_markup: inlineMarkup([[{ text: 'Написать в поддержку', url: `https://t.me/${s}` }]]) } : {}),
     });
   }
 
   private reply(chatId: number, text: string) {
     const markup = this.deps.publicUrl ? { reply_markup: { inline_keyboard: [[{ text: 'Открыть кошелёк', web_app: { url: this.deps.publicUrl } }]] } } : {};
-    return this.api.call('sendMessage', { chat_id: chatId, text, ...markup });
+    return this.api.call('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML', link_preview_options: { is_disabled: true }, ...markup });
   }
 }

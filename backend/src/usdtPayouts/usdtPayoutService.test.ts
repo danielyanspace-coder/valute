@@ -102,7 +102,7 @@ describe('UsdtPayoutService', () => {
     expect(() => t.svc.reject(p.id, ' ')).toThrow(/причину/);
     t.svc.reject(p.id, 'адрес биржи не принимает TRC-20');
     expect(t.bal()).toEqual({ availableMicro: 100 * USDT, frozenMicro: 0 });
-    expect(t.sent[0]).toMatch(/отклонён: адрес биржи/);
+    expect(t.sent[0]).toMatch(/отклонён<\/b>\nПричина: адрес биржи/);
     expect(() => t.svc.reject(p.id, 'ещё раз')).toThrow(/уже обработана/);
     expect(t.svc.counts()).toEqual({ new: 0, sent: 0, rejected: 1 });
   });

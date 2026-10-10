@@ -18,6 +18,7 @@ import {
   boardSection,
   correctionPlan,
   nextReminderAt,
+  REMINDER_COUNT,
   reminderMessage,
   remindersDue,
   userActions,
@@ -49,6 +50,7 @@ import { transaction, type Db } from '../db/database.js';
 import type { Ledger } from '../ledger/ledger.js';
 import type { InlineButton, Messenger } from '../notifications/messenger.js';
 import type { NotificationService } from '../notifications/notificationService.js';
+import { em, esc } from '../notifications/emoji.js';
 import type { ObligationService } from '../obligations/obligationService.js';
 import type { UserRepo, UserRow } from '../users/userRepo.js';
 
@@ -262,7 +264,7 @@ export class WithdrawalService {
       this.log(id, w.user_id, 'user', 'user_received', { amountMicro: w.amount_micro, amountRub: w.amount_rub, data: { from: w.status, responseMs: this.responseMs(w) } });
       return this.row(id)!;
     });
-    this.clearBotButtons(row, 'Получение подтверждено. Спасибо!');
+    this.clearBotButtons(row, `${em('success')} <b>Заявка №${row.id}</b>: получение подтверждено. Спасибо!`);
     return row;
   }
 
@@ -273,7 +275,7 @@ export class WithdrawalService {
       this.log(id, w.user_id, 'user', 'user_not_received', { amountRub: w.amount_rub, data: { from: w.status, responseMs: this.responseMs(w) } });
       return this.row(id)!;
     });
-    this.clearBotButtons(row, `Заявка №${row.id}: вы сообщили, что оплата не поступила. С вами свяжется поддержка. Если деньги придут, подтвердите получение в кошельке.`);
+    this.clearBotButtons(row, `${em('support')} <b>Заявка №${row.id}</b>: вы сообщили, что оплата не поступила. С вами свяжется поддержка. Если деньги придут, подтвердите получение в кошельке.`);
     return row;
   }
 
@@ -286,7 +288,7 @@ export class WithdrawalService {
       this.log(id, w.user_id, 'user', 'user_other_amount', { amountRub: reportedRub, data: { from: w.status, originalRub: w.amount_rub } });
       return this.row(id)!;
     });
-    this.clearBotButtons(row, `Вы сообщили о сумме ${rub(reportedRub)}. Мы проверим и сообщим результат.`);
+    this.clearBotButtons(row, `${em('pending')} <b>Заявка №${row.id}</b>: вы сообщили о сумме ${rub(reportedRub)}. Мы проверим и сообщим результат.`);
     return row;
   }
 
@@ -333,7 +335,7 @@ export class WithdrawalService {
       this.payout(w, 'confirmed_admin', w.amount_micro, w.amount_rub, opts);
       this.log(id, w.user_id, 'admin', 'admin_confirmed', { amountMicro: w.amount_micro, amountRub: w.amount_rub, data: { from: w.status } });
     });
-    this.tellUser(row, 'deal_completed', `Заявка №${row.id}: выплата ${rub(row.amount_rub)} подтверждена, сделка завершена.`);
+    this.tellUser(row, 'deal_completed', `${em('success')} <b>Заявка №${row.id}</b>: выплата ${rub(row.amount_rub)} подтверждена, сделка завершена.`);
     return row;
   }
 
@@ -354,7 +356,7 @@ export class WithdrawalService {
       ]);
       this.log(id, w.user_id, 'admin', 'deal_reopened', { amountMicro: w.amount_micro });
     });
-    this.tellUser(row, 'deal_reminder', `По заявке №${row.id} нужна проверка. Откройте кошелёк и сообщите, поступили ли деньги.`);
+    this.tellUser(row, 'deal_reminder', `${em('clock')} <b>Заявка №${row.id}</b>: нужна проверка. Откройте кошелёк и сообщите, поступили ли деньги.`);
     return row;
   }
 
@@ -397,7 +399,7 @@ export class WithdrawalService {
         });
       }
     });
-    const parts = [`По заявке №${row.id} принята сумма ${rub(row.final_rub!)}.`];
+    const parts = [`${em('success')} <b>Заявка №${row.id}</b>: принята сумма ${rub(row.final_rub!)}.`];
     if (plan.refundMicro) parts.push(`${shortUsdt(plan.refundMicro)} USDT вернулись на баланс.`);
     if (plan.fromAvailableMicro) parts.push(`Дополнительно списано ${shortUsdt(plan.fromAvailableMicro)} USDT.`);
     this.tellUser(row, 'deal_corrected', parts.join(' '));
@@ -409,7 +411,7 @@ export class WithdrawalService {
       this.payout(w, 'original', w.amount_micro, w.amount_rub, opts);
       this.log(id, w.user_id, 'admin', 'original_accepted', { amountMicro: w.amount_micro, amountRub: w.amount_rub, data: { reportedRub: w.reported_rub } });
     });
-    this.tellUser(row, 'deal_completed', `Заявка №${row.id} завершена по сумме сделки ${rub(row.amount_rub)}.`);
+    this.tellUser(row, 'deal_completed', `${em('success')} <b>Заявка №${row.id}</b> завершена по сумме сделки ${rub(row.amount_rub)}.`);
     return row;
   }
 
@@ -423,7 +425,7 @@ export class WithdrawalService {
       ]);
       this.log(id, w.user_id, 'admin', 'deal_cancelled', { amountMicro: w.amount_micro, amountRub: w.amount_rub, data: { from: w.status, reason } });
     });
-    this.tellUser(row, 'deal_cancelled', `Заявка №${row.id} на ${rub(row.amount_rub)} отменена. ${shortUsdt(row.amount_micro)} USDT вернулись на баланс.`);
+    this.tellUser(row, 'deal_cancelled', `${em('cancel')} <b>Заявка №${row.id}</b> на ${rub(row.amount_rub)} отменена.\n${em('received')} ${shortUsdt(row.amount_micro)} USDT вернулись на баланс.`);
     return row;
   }
 
@@ -508,7 +510,7 @@ export class WithdrawalService {
     const user = this.users.get(w.user_id);
     if (!user || !this.messenger || user.support_lock_at) return;
     const text =
-      `Время на подтверждение по заявке №${w.id} вышло.\n\n` +
+      `${em('warning')} <b>Время на подтверждение по заявке №${w.id} вышло</b>\n\n` +
       `Кошелёк приостановлен, пока вы не ответите: поступила ли оплата ${rub(w.amount_rub)}? Сделка на рассмотрении администратора.`;
     const buttons = this.dealButtons(w, 'Оплата поступила');
     try {
@@ -522,6 +524,12 @@ export class WithdrawalService {
     }
   }
 
+  /** Reminder n of 5 as bot HTML: the last one is a warning. */
+  reminder(n: number, w: WithdrawalRow): { text: string; receivedLabel: string } {
+    const msg = reminderMessage(n, w.amount_rub, w.id);
+    return { ...msg, text: `${em(n >= REMINDER_COUNT ? 'warning' : 'clock')} ${msg.text}` };
+  }
+
   private async sendReminder(w: WithdrawalRow, n: number): Promise<void> {
     const user = this.users.get(w.user_id);
     if (!user) return;
@@ -533,7 +541,7 @@ export class WithdrawalService {
     } else if (this.messenger) {
       this.notifications.notify(user, 'deal_reminder', { withdrawalId: w.id });
       if (w.bot_message_id) await this.messenger.editButtons(user.telegram_id, w.bot_message_id, []);
-      const msg = reminderMessage(n, w.amount_rub, w.id);
+      const msg = this.reminder(n, w);
       const res = await this.messenger.send(user.telegram_id, msg.text, { buttons: this.dealButtons(w, msg.receivedLabel) });
       if (res.ok) {
         delivered = true;
@@ -767,8 +775,8 @@ export class WithdrawalService {
     const buttons = locked && supportUsername ? [[{ text: 'Написать в поддержку', url: `https://t.me/${supportUsername}` }]] : undefined;
     this.notifications.notify(u, 'support_lock', {
       botText: locked
-        ? 'Свяжитесь с поддержкой. Операции в кошельке приостановлены до связи с нами.'
-        : 'Доступ к кошельку восстановлен. Спасибо!',
+        ? `${em('lock')} <b>Свяжитесь с поддержкой</b>\nОперации в кошельке приостановлены до связи с нами.`
+        : `${em('unlock')} Доступ к кошельку восстановлен. Спасибо!`,
       buttons,
     });
     return this.adminUser(userId);
