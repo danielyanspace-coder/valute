@@ -702,6 +702,30 @@ export interface AdminDepositAddressDto {
   receivedMicro: number;
 }
 
+/** One wallet of the pool with its live balance; null when TronGrid did not answer. */
+export interface AdminWalletBalanceDto {
+  id: number;
+  address: string;
+  label: string;
+  own: boolean;
+  usdtMicro: number | null;
+  trxSun: number | null;
+  error: string | null;
+}
+
+/** "Balance on all wallets": every pool address and own wallet, read from the chain. */
+export interface AdminWalletBalancesDto {
+  items: AdminWalletBalanceDto[];
+  totalUsdtMicro: number;
+  /** Split of the total: deposit addresses lent to users vs the operator's own wallets. */
+  poolUsdtMicro: number;
+  ownUsdtMicro: number;
+  totalTrxSun: number;
+  /** Wallets whose balance could not be read: the total is then a lower bound. */
+  failed: number;
+  checkedAt: number;
+}
+
 export interface AdminDepositCounts {
   held: number;
   below_min: number;

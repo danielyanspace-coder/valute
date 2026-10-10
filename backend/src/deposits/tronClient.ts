@@ -17,11 +17,19 @@ export type TxVerdict =
   | { state: 'failed' }
   | { state: 'confirmed'; valueMicro: number; from: string; blockNumber: number; blockTimestamp: number };
 
+/** What a wallet holds right now: real Tether USDT only, plus TRX that pays network fees. */
+export interface WalletBalance {
+  usdtMicro: number;
+  trxSun: number;
+}
+
 export interface TronChain {
   /** USDT transfers to the address since a moment, newest first. Discovery only: not proof. */
   incomingUsdt(address: string, sinceMs: number): Promise<IncomingTransfer[]>;
   /** Proof: USDT the tx moved to the address, read from the solidified chain. */
   verifyUsdtTo(txId: string, address: string): Promise<TxVerdict>;
+  /** Current balance. An address that never received anything is not on chain yet: zeros. */
+  balance(address: string): Promise<WalletBalance>;
 }
 
 const MAX_PAGES = 5;
@@ -86,6 +94,23 @@ export class TronGridClient implements TronChain {
     const info: any = await this.request('/walletsolidity/gettransactioninfobyid', { value: txId });
     return verdictFromTxInfo(info, address);
   }
+
+  async balance(address: string): Promise<WalletBalance> {
+    const res: any = await this.request(`/v1/accounts/${address}`);
+    return balanceFromAccount(res?.data?.[0]);
+  }
+}
+
+/** Pure part of balance(), exported for tests. Tokens other than the Tether contract are ignored. */
+export function balanceFromAccount(account: any): WalletBalance {
+  if (!account) return { usdtMicro: 0, trxSun: 0 };
+  let usdt = 0n;
+  for (const t of account.trc20 ?? []) {
+    const v = t?.[USDT_TRC20];
+    if (typeof v === 'string' && /^\d+$/.test(v)) usdt += BigInt(v);
+  }
+  const trx = Number(account.balance ?? 0);
+  return { usdtMicro: Number(usdt), trxSun: Number.isFinite(trx) && trx > 0 ? trx : 0 };
 }
 
 /** Pure part of verification, exported for tests. */

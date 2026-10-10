@@ -16,6 +16,7 @@ import type {
   AdminOrderListItem,
   AdminUserListItem,
   AdminUserPageDto,
+  AdminWalletBalancesDto,
   AdminWithdrawalDto,
   AdminWithdrawalListItem,
   ArchiveQuery,
@@ -152,6 +153,8 @@ export interface AdminApi {
   usdtPayoutSent(id: number, txId: string, force: boolean, note: string): Promise<AdminUsdtPayoutDto>;
   usdtPayoutReject(id: number, reason: string): Promise<AdminUsdtPayoutDto>;
   depositPool(): Promise<{ items: AdminDepositAddressDto[] }>;
+  /** Live USDT/TRX on every pool address and own wallet; refresh bypasses the 1-minute cache. */
+  walletBalances(refresh?: boolean): Promise<AdminWalletBalancesDto>;
   depositPoolAdd(address: string, label: string, own: boolean): Promise<{ items: AdminDepositAddressDto[] }>;
   depositPoolUpdate(id: number, patch: { enabled?: boolean; label?: string }): Promise<{ items: AdminDepositAddressDto[] }>;
   depositPoolRemove(id: number): Promise<{ items: AdminDepositAddressDto[] }>;
@@ -240,6 +243,7 @@ export function httpAdminApi(token: string): AdminApi {
     usdtPayoutSent: (id, txId, force, note) => post(`/usdt-withdrawals/${id}/sent`, { txId, force, note }),
     usdtPayoutReject: (id, reason) => post(`/usdt-withdrawals/${id}/reject`, { reason }),
     depositPool: () => request('GET', '/api/admin/deposit-pool', auth),
+    walletBalances: (refresh = false) => request('GET', `/api/admin/deposit-pool/balances${refresh ? '?refresh=1' : ''}`, auth),
     depositPoolAdd: (address, label, own) => post('/deposit-pool', { address, label, own }),
     depositPoolUpdate: (id, patch) => post(`/deposit-pool/${id}`, patch),
     depositPoolRemove: (id) => post(`/deposit-pool/${id}/remove`),

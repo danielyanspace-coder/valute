@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tronAddressFromHex, tronAddressToHex } from './tronHd.js';
-import { verdictFromTxInfo } from './tronClient.js';
+import { balanceFromAccount, USDT_TRC20, verdictFromTxInfo } from './tronClient.js';
 
 // Real mainnet tx: 5 USDT from TYr4DL... to TV6MuM... (solidity node response).
 const INFO = {
@@ -50,5 +50,17 @@ describe('hex addresses', () => {
   it('round-trips', () => {
     expect(tronAddressToHex(TO)).toBe('41d1c4bb7b2f39aba5707711719b2236b5b605af2e');
     expect(tronAddressFromHex('d1c4bb7b2f39aba5707711719b2236b5b605af2e')).toBe(TO);
+  });
+});
+
+describe('balanceFromAccount', () => {
+  it('counts only the Tether contract and TRX; a new address is all zeros', () => {
+    const account = {
+      balance: 12_500_000,
+      trc20: [{ TXL6rJbvmjD46zeN1JssfgxvSo99qC8MRT: '999000000' }, { [USDT_TRC20]: '157939862582' }],
+    };
+    expect(balanceFromAccount(account)).toEqual({ usdtMicro: 157_939_862_582, trxSun: 12_500_000 });
+    expect(balanceFromAccount(undefined)).toEqual({ usdtMicro: 0, trxSun: 0 });
+    expect(balanceFromAccount({ balance: 0 })).toEqual({ usdtMicro: 0, trxSun: 0 });
   });
 });

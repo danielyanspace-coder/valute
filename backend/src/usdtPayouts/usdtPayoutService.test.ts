@@ -21,6 +21,9 @@ class FakeChain implements TronChain {
   async verifyUsdtTo(txId: string): Promise<TxVerdict> {
     return this.verdicts.get(txId) ?? { state: 'unconfirmed' };
   }
+  async balance() {
+    return { usdtMicro: 0, trxSun: 0 };
+  }
 }
 
 class FakeAml implements AmlCheck {

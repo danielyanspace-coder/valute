@@ -28,6 +28,12 @@ class FakeChain implements TronChain {
   async verifyUsdtTo(txId: string): Promise<TxVerdict> {
     return this.verdicts.get(txId) ?? { state: 'unconfirmed' };
   }
+  balances = new Map<string, number>();
+  failing = new Set<string>();
+  async balance(address: string) {
+    if (this.failing.has(address)) throw new Error('TronGrid 503');
+    return { usdtMicro: this.balances.get(address) ?? 0, trxSun: 0 };
+  }
   /** A transfer seen by the index and already confirmed by the chain. */
   pay(to: string, txId: string, valueMicro: number, at: number, from = SENDER, confirmed = true) {
     this.incoming.set(to, [...(this.incoming.get(to) ?? []), { txId, from, valueMicro, blockTimestamp: at }]);
@@ -301,5 +307,39 @@ describe('DepositService: checks', () => {
     t.advance(POLL_SCHEDULE.hot);
     await t.svc.tick();
     expect(t.chain.calls).toBe(3);
+  });
+});
+
+describe('DepositService: balances on all wallets', () => {
+  it('sums every pool address and own wallet, split into pool and own', async () => {
+    const t = setup();
+    t.svc.poolAdd(OWN, 'основной', true);
+    t.chain.balances.set(A1, 120 * USDT).set(A2, 30 * USDT).set(OWN, 1000 * USDT);
+    const b = await t.svc.walletBalances();
+    expect(b).toMatchObject({ totalUsdtMicro: 1150 * USDT, poolUsdtMicro: 150 * USDT, ownUsdtMicro: 1000 * USDT, failed: 0 });
+    expect(b.items.map((i) => [i.address, i.usdtMicro])).toEqual([[OWN, 1000 * USDT], [A1, 120 * USDT], [A2, 30 * USDT]]);
+  });
+
+  it('reads the chain at most once a minute unless asked to refresh', async () => {
+    const t = setup();
+    t.chain.balances.set(A1, 5 * USDT);
+    expect((await t.svc.walletBalances()).totalUsdtMicro).toBe(5 * USDT);
+    t.chain.balances.set(A1, 7 * USDT);
+    expect((await t.svc.walletBalances()).totalUsdtMicro).toBe(5 * USDT);
+    expect((await t.svc.walletBalances(true)).totalUsdtMicro).toBe(7 * USDT);
+    t.chain.balances.set(A1, 9 * USDT);
+    t.advance(61_000);
+    expect((await t.svc.walletBalances()).totalUsdtMicro).toBe(9 * USDT);
+  });
+
+  it('a wallet TronGrid cannot read keeps its last known balance and is reported', async () => {
+    const t = setup();
+    t.chain.balances.set(A1, 10 * USDT).set(A2, 20 * USDT);
+    await t.svc.walletBalances();
+    t.chain.failing.add(A2);
+    const b = await t.svc.walletBalances(true);
+    expect(b.failed).toBe(1);
+    expect(b.totalUsdtMicro).toBe(30 * USDT);
+    expect(b.items.find((i) => i.address === A2)).toMatchObject({ usdtMicro: 20 * USDT, error: 'TronGrid 503' });
   });
 });
