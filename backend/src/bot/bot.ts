@@ -131,7 +131,21 @@ export class WalletBot {
     const [cmd, payload = ''] = text.trim().split(/\s+/, 2);
     if (cmd === '/start' && payload.startsWith(CHECK_START_PREFIX)) return this.claim(from.id, user.id, payload.slice(CHECK_START_PREFIX.length));
     if (cmd === '/send') return this.reply(from.id, this.howToSend());
-    return this.reply(from.id, `${em('rocket')} <b>Crypto IX</b>: кошелёк USDT прямо в Telegram.\n\n${this.howToSend()}`);
+    return this.reply(from.id, this.welcome());
+  }
+
+  private welcome(): string {
+    const s = this.deps.supportUsername;
+    return [
+      `${em('brand')} <b>Crypto IX</b>: USDT-кошелёк прямо в Telegram`,
+      '',
+      '• Вывод на карту и по СБП',
+      '• Пополнение USDT в сети TRC-20',
+      '• Чеки и переводы друзьям без комиссии',
+      '',
+      this.howToSend(),
+      ...(s ? ['', `Поддержка: @${s}`] : []),
+    ].join('\n');
   }
 
   /** Operator helper: send custom emoji to the bot, get their ids for CUSTOM_EMOJI_IDS. */
@@ -142,10 +156,11 @@ export class WalletBot {
 
   private howToSend(): string {
     return [
-      `${em('check')} <b>Как отправить USDT без комиссии:</b>`,
-      `• В любом чате напишите @${this.username} 10 и выберите «Отправить чек». Получатель нажмёт «Получить», и деньги придут ему на баланс.`,
-      `• Можно добавить комментарий: @${this.username} 10 за кофе`,
-      '• Или откройте кошелёк → «Перевести» и отправьте по username.',
+      `${em('point')} <b>Как отправить чек</b>`,
+      `В любом чате напишите <code>@${this.username} 10</code> и выберите «Отправить чек». Получатель нажмёт «Получить», и USDT придут ему на баланс.`,
+      '',
+      `С комментарием: <code>@${this.username} 10 за кофе</code>`,
+      'Или по username: кошелёк → «Перевести».',
     ].join('\n');
   }
 

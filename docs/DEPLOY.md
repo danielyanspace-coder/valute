@@ -92,5 +92,5 @@ bash /opt/cryptoix/scripts/update.sh
    CUSTOM_EMOJI=on
    CUSTOM_EMOJI_IDS=deposit=ID,received=ID,success=ID,cancel=ID,check=ID,warning=ID,clock=ID
    ```
-   Ключи: deposit (пополнение), received (пришли деньги), withdraw, success, cancel, pending, clock, warning, check (чек), usdt, lock, unlock, support, hold (удержание), rocket (приветствие), gift.
+   Ключи: deposit (пополнение), received (пришли деньги), withdraw, success, cancel, pending, clock, warning, check (чек), usdt, lock, unlock, support, hold (удержание), brand и point (приветствие), gift.
 5. `systemctl restart cryptoix`. Эмодзи без ID остаются обычными.

@@ -17,7 +17,8 @@ export const EMOJI = {
   unlock: '🔓',
   support: '💬',
   hold: '❄️',
-  rocket: '🚀',
+  brand: '◾️',
+  point: '▪️',
   gift: '🎁',
 } as const;
 
