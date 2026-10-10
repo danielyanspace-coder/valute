@@ -22,6 +22,7 @@ interface TgWebApp {
   setBottomBarColor?(color: string): void;
   colorScheme?: 'light' | 'dark';
   disableVerticalSwipes?(): void;
+  requestFullscreen?(): void;
   showScanQrPopup(params: { text?: string }, cb?: (text: string) => boolean | void): void;
   closeScanQrPopup(): void;
   openLink(url: string): void;
@@ -55,6 +56,8 @@ export function initTelegram(bg: string): void {
     tg.setBackgroundColor(bg);
   }
   if (tg.isVersionAtLeast('7.7')) tg.disableVerticalSwipes?.();
+  // Full screen like Crypto Bot, on phones only: on desktop it would cover the whole monitor.
+  if (tg.isVersionAtLeast('8.0') && ['ios', 'android'].includes(tg.platform)) tg.requestFullscreen?.();
 }
 
 /** Paints Telegram's own header and background to match the current theme. */
