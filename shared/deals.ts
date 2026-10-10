@@ -110,7 +110,11 @@ export const ADMIN_ACTION_LABEL: Record<AdminDealAction, string> = {
 
 // ---------- User actions ----------
 
-export type UserDealAction = 'received' | 'not_received' | 'other_amount';
+/**
+ * not_yet = "the money has not arrived yet", offered under reminders 1-4 instead of
+ * not_received: it changes nothing in the deal, only tells the operator the user is there.
+ */
+export type UserDealAction = 'received' | 'not_received' | 'not_yet' | 'other_amount';
 
 export interface DealTiming {
   status: DealStatus;
@@ -120,14 +124,15 @@ export interface DealTiming {
 /**
  * What the user may press right now. Nothing before the first reminder (the money
  * may still be on its way); "not received" only from the 5th reminder on, so people
- * do not press it while the bank is still processing the transfer.
+ * do not press it while the bank is still processing the transfer. Until then they get
+ * "not yet", which only folds the reminder away.
  */
 export function userActions(d: DealTiming, now: number): UserDealAction[] {
   switch (d.status) {
     case 'entered': {
       if (d.enteredAt === null || now < d.enteredAt + REMINDER_INTERVAL_MS) return [];
       const last = now >= d.enteredAt + REMINDER_COUNT * REMINDER_INTERVAL_MS;
-      return last ? ['received', 'not_received', 'other_amount'] : ['received', 'other_amount'];
+      return last ? ['received', 'not_received', 'other_amount'] : ['received', 'not_yet', 'other_amount'];
     }
     case 'not_received':
       return ['received', 'other_amount'];
@@ -218,31 +223,58 @@ export function boardSection(d: { status: DealStatus; requisiteOffAt: number | n
 
 // ---------- Reminders ----------
 
+export type ReminderLevel = 'warning' | 'urgent' | 'critical';
+
 export interface ReminderMessage {
+  /** warning: reminders 1-3, calm, yellow; urgent: the 4th, red; critical: the 5th and last. */
+  level: ReminderLevel;
+  title: string;
   text: string;
   /** Button labels follow the reminder: the 5th one is the final call. */
   receivedLabel: string;
 }
 
+/** Red from the 4th reminder: from then on silence has consequences. */
+export const reminderLevel = (n: number): ReminderLevel => (n >= REMINDER_COUNT ? 'critical' : n === REMINDER_COUNT - 1 ? 'urgent' : 'warning');
+
+/**
+ * Escalation that stays calm while the bank may still be processing the transfer, and turns
+ * red only when there is a real deadline. Every reminder names one action and offers an honest
+ * way out ("not yet"): a user pushed into confirming money that has not arrived costs everyone a
+ * dispute, so the red ones say plainly to confirm only what is really on the account.
+ */
 export function reminderMessage(n: number, amountRub: number, dealId: number): ReminderMessage {
   const sum = `${amountRub.toLocaleString('ru-RU')} ₽`;
-  if (n >= REMINDER_COUNT) {
+  const level = reminderLevel(n);
+  if (level === 'critical') {
     return {
+      level,
+      title: `Последнее уведомление по заявке №${dealId}`,
       text:
-        `Подтвердите оплату по заявке №${dealId}: деньги должны были поступить (${sum}).\n\n` +
-        'Если вы не сделаете это в течение 2 минут, сделка будет переведена системой в состояние неактивности и останется на рассмотрении администратора, а кошелёк будет приостановлен до вашего ответа.',
+        `Деньги должны были поступить (${sum}). Ответьте в течение 2 минут, иначе сделка будет переведена системой в состояние неактивности и останется на рассмотрении администратора, а кошелёк будет приостановлен до вашего ответа.\n\n` +
+        'Подтверждайте получение, только если деньги действительно пришли на счёт. Если нет, нажмите «Оплата не поступила».',
       receivedLabel: 'Оплата поступила',
     };
   }
-  const head =
-    n === 1
-      ? `Деньги начали путь. Проверьте счёт и подтвердите поступление ${sum} по заявке №${dealId}.`
-      : `Напоминание: проверьте поступление ${sum} по заявке №${dealId} и подтвердите получение.`;
-  const tail =
-    n === REMINDER_COUNT - 1
-      ? 'Следующее уведомление будет последним.'
-      : 'Чем быстрее вы подтверждаете получение, тем выше ваш рейтинг и тем выгоднее курс для вас.';
-  return { text: `${head}\n\n${tail}`, receivedLabel: 'Подтвердить получение' };
+  if (level === 'urgent') {
+    return {
+      level,
+      title: `Требуется ваш ответ по заявке №${dealId}`,
+      text:
+        `Проверьте поступление ${sum} прямо сейчас. Следующее уведомление будет последним: без ответа сделка уйдёт на проверку, а кошелёк будет приостановлен.\n\n` +
+        'Деньги пришли: «Подтвердить получение». Ещё нет: «Оплата ещё не поступила».',
+      receivedLabel: 'Подтвердить получение',
+    };
+  }
+  return {
+    level,
+    title: n === 1 ? `Подтвердите поступление по заявке №${dealId}` : `Напоминание ${n} из ${REMINDER_COUNT} по заявке №${dealId}`,
+    text:
+      n === 1
+        ? `Деньги начали путь: ${sum} поступят на ваш счёт в ближайшие минуты. Проверьте банк и подтвердите получение, как только они придут.\n\nЧем быстрее вы подтверждаете получение, тем выше ваш рейтинг и тем выгоднее курс для вас.`
+        : `Проверьте поступление ${sum} и подтвердите получение. Если денег ещё нет, нажмите «Оплата ещё не поступила»: так мы будем знать, что вы на связи.`,
+    receivedLabel: 'Подтвердить получение',
+  };
 }
 
 // ---------- Corrections ----------

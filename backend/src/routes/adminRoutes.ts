@@ -194,6 +194,9 @@ export function adminRoutes(app: FastifyInstance, deps: AdminRouteDeps) {
 
   // Deposit addresses (TronLink accounts) and the operator's own wallets.
   app.get('/api/admin/deposit-pool', async () => ({ items: deps.deposits.poolList() }));
+  app.get<{ Querystring: { refresh?: string } }>('/api/admin/deposit-pool/balances', async (req) =>
+    deps.deposits.walletBalances(req.query.refresh === '1'),
+  );
   app.post<{ Body: { address?: string; label?: string; own?: boolean } }>('/api/admin/deposit-pool', async (req) => ({
     items: deps.deposits.poolAdd(String(req.body?.address ?? ''), String(req.body?.label ?? ''), !!req.body?.own),
   }));

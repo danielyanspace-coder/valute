@@ -4,6 +4,7 @@ import { ADMIN_STATUS_LABEL, type DealStatus } from '../../../shared/deals';
 import type { AdminApi } from '../lib/api';
 import { fmtMicro, fmtRub0 } from '../lib/format';
 import { usePolling } from '../lib/useInterval';
+import { WalletBalances } from './WalletBalances';
 
 /** 1 сделка, 2 сделки, 5 сделок. */
 const plural = (n: number, one: string, few: string, many: string) => {
@@ -39,6 +40,8 @@ export function StatsPanel({ api, onOpenUser }: { api: AdminApi; onOpenUser: (id
         ))}
       </div>
       {error && <div className="adm-error">{error}</div>}
+
+      <WalletBalances api={api} owedMicro={owed} />
 
       <div className="st-hero">
         <Tile big label="Выплачено в рублях" value={fmtRub0(p.payoutRub)} sub={`${deals(p.payoutCount)} · ${plural(p.payoutUsers, 'клиент', 'клиента', 'клиентов')} · ${fmtMicro(p.payoutMicro)}`} />

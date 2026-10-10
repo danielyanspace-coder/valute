@@ -220,6 +220,7 @@
 .ab-dest { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #c9cfdb; min-width: 0; }
 .ab-dest span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ab-line { font-size: 12.5px; color: #c9cfdb; }
+.ab-line.t-ok { color: var(--green); }
 .ab-reminder { font-size: 12.5px; line-height: 1.4; padding: 8px 10px; border-radius: 10px; background: rgba(255, 212, 59, 0.12); color: #ffe38a; border: 1px solid rgba(255, 212, 59, 0.35); }
 .ab-reminder.small { font-size: 11.5px; padding: 6px 8px; }
 .ab-timer { font-size: 12px; font-weight: 700; color: #c9cfdb; font-variant-numeric: tabular-nums; }
@@ -251,7 +252,7 @@ body.ab-noscroll { overflow: hidden; }
 .ab-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .ab-x { width: 38px; height: 38px; flex-shrink: 0; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); font-size: 16px; }
 .ab-sub { margin-top: 10px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
-.ab-reminder-row { display: grid; grid-template-columns: 36px 80px 1fr; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ab-reminder-row { display: grid; grid-template-columns: 36px 80px 1fr auto; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .ab-mini { width: 100%; display: grid; grid-template-columns: 64px 110px auto 1fr; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); text-align: left; font-variant-numeric: tabular-nums; }
 .ab-mini .adm-muted { text-align: right; font-size: 12px; }
 
@@ -501,4 +502,32 @@ body.ab-noscroll { overflow: hidden; }
 @media (max-width: 560px) {
   .st-grid { grid-template-columns: 1fr 1fr; }
   .st-x span.skip { visibility: hidden; }
+}
+
+/* Balance on all wallets */
+.wb { display: flex; flex-direction: column; gap: 6px; }
+.wb .adm-card-head .adm-card-title { margin-bottom: 0; }
+.wb-refresh { height: 30px; padding: 0 12px; font-size: 12.5px; }
+.wb-total { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; letter-spacing: -0.5px; }
+.wb-split { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12.5px; color: var(--muted); }
+.wb-split b { color: #e8ecf6; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wb-reserve { font-size: 12.5px; font-weight: 700; }
+.wb-warn { font-size: 12.5px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 190, 80, 0.12); color: #ffc768; border: 1px solid rgba(255, 190, 80, 0.3); }
+.wb-toggle { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; margin-top: 4px; padding: 6px 0; font-size: 13px; font-weight: 700; color: #b8c0ff; }
+.wb-caret { display: inline-block; transition: transform 0.15s; }
+.wb-caret.open { transform: rotate(90deg); }
+.wb-list { display: flex; flex-direction: column; }
+.wb-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.5fr) auto; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); }
+.wb-row.failed .wb-amount span { color: #ffc768; }
+.wb-name { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.wb-name b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wb-addr { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12.5px; }
+.wb-addr code { color: var(--muted); }
+.wb-link { color: #b8c0ff; font-size: 12px; white-space: nowrap; }
+.wb-amount { display: flex; flex-direction: column; align-items: flex-end; text-align: right; font-variant-numeric: tabular-nums; }
+.wb-amount span { font-size: 11.5px; color: var(--muted); }
+.wb-time { margin-top: 2px; }
+@media (max-width: 720px) {
+  .wb-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .wb-addr { grid-column: 1 / -1; grid-row: 2; }
 }

@@ -17,11 +17,19 @@ export type TxVerdict =
   | { state: 'failed' }
   | { state: 'confirmed'; valueMicro: number; from: string; blockNumber: number; blockTimestamp: number };
 
+/** What a wallet holds right now: real Tether USDT only, plus TRX that pays network fees. */
+export interface WalletBalance {
+  usdtMicro: number;
+  trxSun: number;
+}
+
 export interface TronChain {
   /** USDT transfers to the address since a moment, newest first. Discovery only: not proof. */
   incomingUsdt(address: string, sinceMs: number): Promise<IncomingTransfer[]>;
   /** Proof: USDT the tx moved to the address, read from the solidified chain. */
   verifyUsdtTo(txId: string, address: string): Promise<TxVerdict>;
+  /** Current balance. An address that never received anything is not on chain yet: zeros. */
+  balance(address: string): Promise<WalletBalance>;
 }
 
 const MAX_PAGES = 5;
@@ -86,6 +94,38 @@ export class TronGridClient implements TronChain {
     const info: any = await this.request('/walletsolidity/gettransactioninfobyid', { value: txId });
     return verdictFromTxInfo(info, address);
   }
+
+  /**
+   * USDT straight from the Tether contract (balanceOf): the account index knows nothing about
+   * an address that has never held TRX, yet such an address can hold USDT. TRX from the index.
+   */
+  async balance(address: string): Promise<WalletBalance> {
+    // One after the other: the key's 15 requests a second are shared with the deposit watcher.
+    const call: any = await this.request('/wallet/triggerconstantcontract', {
+      owner_address: USDT_TRC20,
+      contract_address: USDT_TRC20,
+      function_selector: 'balanceOf(address)',
+      parameter: tronAddressToHex(address).slice(2).padStart(64, '0'),
+      visible: true,
+    });
+    const account: any = await this.request(`/v1/accounts/${address}`);
+    return { usdtMicro: usdtFromBalanceOf(call), trxSun: trxFromAccount(account?.data?.[0]) };
+  }
+}
+
+/** Pure part of balance(): the uint256 balanceOf returned. Throws rather than report a wrong zero. */
+export function usdtFromBalanceOf(call: any): number {
+  const hex = call?.constant_result?.[0];
+  if (call?.result?.result !== true || typeof hex !== 'string' || !/^[0-9a-f]{1,64}$/i.test(hex)) {
+    throw new Error(`balanceOf failed: ${JSON.stringify(call?.result ?? call).slice(0, 150)}`);
+  }
+  return Number(BigInt(`0x${hex}`));
+}
+
+/** TRX in sun; an address that never held TRX is not in the index at all: zero. */
+export function trxFromAccount(account: any): number {
+  const trx = Number(account?.balance ?? 0);
+  return Number.isFinite(trx) && trx > 0 ? trx : 0;
 }
 
 /** Pure part of verification, exported for tests. */

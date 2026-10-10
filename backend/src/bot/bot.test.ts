@@ -113,4 +113,23 @@ describe('WalletBot', () => {
     await bot.handle({ update_id: 2, message: { chat: { id: 5, type: 'private' }, from: { id: 5, first_name: 'X' }, text: '💰', entities } });
     expect(calls.at(-1)!.params.text).not.toContain('5368324170671202286');
   });
+
+  it('"not yet" folds the reminder into a short note and leaves the deal as it is', async () => {
+    const { users, withdrawals, bot, calls, ledger, database } = setup();
+    const a = users.upsertFromTelegram(alice);
+    withdrawals.adjustBalance(a.id, 100_000_000, 'test');
+    const w = withdrawals.create(a, { method: 'card', amountRub: 8000, cardNumber: '2200000000000004', requestId: 'r', acceptedTerms: true }, { rate: 80, exchangeRate: 76 });
+    withdrawals.take(w.id);
+    withdrawals.entered(w.id);
+    database.prepare('UPDATE withdrawals SET entered_at = entered_at - 130000 WHERE id = ?').run(w.id);
+
+    await bot.handle({ update_id: 9, callback_query: { id: 'cb', from: alice, data: `dw:${w.id}`, message: { message_id: 55, chat: { id: 100 } } } });
+    expect(calls.find((c) => c.method === 'answerCallbackQuery')!.params.text).toMatch(/ждём/);
+    const edit = calls.find((c) => c.method === 'editMessageText')!.params;
+    expect(edit.text).toContain(`<b>Заявка №${w.id}</b>: ждём поступления`);
+    expect(edit.reply_markup.inline_keyboard.flat().map((b: { text: string }) => b.text)).toEqual(['Открыть кошелёк']);
+    expect(withdrawals.row(w.id)).toMatchObject({ status: 'entered', user_decision: null });
+    expect(withdrawals.row(w.id)!.user_active_at).not.toBeNull();
+    expect(ledger.balances(a.id).frozenMicro).toBe(100_000_000);
+  });
 });

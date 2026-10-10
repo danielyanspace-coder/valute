@@ -3,6 +3,8 @@ import type {
   AdminDepositCounts,
   AdminDepositDto,
   AdminUserRef,
+  AdminWalletBalanceDto,
+  AdminWalletBalancesDto,
   DepositDto,
   DepositRequestDto,
   DepositStatus,
@@ -23,8 +25,11 @@ import type { NotificationService } from '../notifications/notificationService.j
 import { em, esc } from '../notifications/emoji.js';
 import type { UserRepo } from '../users/userRepo.js';
 import { AppError } from '../withdrawals/withdrawalService.js';
-import type { IncomingTransfer, TronChain } from './tronClient.js';
+import type { IncomingTransfer, TronChain, WalletBalance } from './tronClient.js';
 import { isTronAddress } from './tronHd.js';
+
+/** Wallet balances in the admin panel are re-read from the chain at most once a minute. */
+const BALANCE_CACHE_MS = 60_000;
 
 const CHAIN = 'TRON';
 const SEC = 1000;
@@ -107,6 +112,8 @@ export interface DepositServiceOptions {
   minDepositMicro: number;
   /** Address checks per tick, to stay inside TronGrid limits. */
   batchSize: number;
+  /** Pause between wallets when reading balances for the admin panel (TronGrid rate limit). */
+  balancePauseMs?: number;
   audit?: AuditLog;
   log?: { warn: (obj: unknown, msg?: string) => void; info: (obj: unknown, msg?: string) => void };
 }
@@ -539,6 +546,69 @@ export class DepositService {
       .run(this.now(), r, id);
     if (Number(res.changes) !== 1) throw new AppError(409, 'deposit_state', 'Пополнение уже обработано');
     return this.toAdminDto(this.get(id)!);
+  }
+
+  // ---------- admin: balances on all wallets ----------
+
+  private balanceCache: AdminWalletBalancesDto | null = null;
+  private balanceLoading: Promise<AdminWalletBalancesDto> | null = null;
+
+  /**
+   * Live USDT and TRX on every pool address and own wallet. Kept for a minute so an open
+   * admin tab does not eat the TronGrid quota the deposit watcher needs; refresh skips that.
+   */
+  async walletBalances(refresh = false): Promise<AdminWalletBalancesDto> {
+    const fresh = this.balanceCache && this.now() - this.balanceCache.checkedAt < BALANCE_CACHE_MS;
+    if (fresh && !refresh) return this.balanceCache!;
+    this.balanceLoading ??= this.loadBalances().finally(() => (this.balanceLoading = null));
+    return this.balanceLoading;
+  }
+
+  private async loadBalances(): Promise<AdminWalletBalancesDto> {
+    const rows = this.db.prepare('SELECT id, address, label, own FROM deposit_pool ORDER BY own DESC, id').all() as unknown as Pick<PoolRow, 'id' | 'address' | 'label' | 'own'>[];
+    const previous = new Map(this.balanceCache?.items.map((i) => [i.address, i]));
+    const items: AdminWalletBalanceDto[] = [];
+    // One wallet at a time with a pause: TronGrid suspends the whole key for 30 s past 15 requests
+    // a second, and the same key watches deposits. A dozen wallets take a few seconds, once a minute.
+    for (let i = 0; i < rows.length; i++) {
+      if (i > 0 && this.opts.balancePauseMs) await new Promise((r) => setTimeout(r, this.opts.balancePauseMs));
+      const batch = rows.slice(i, i + 1);
+      const got = await Promise.all(
+        batch.map((r) =>
+          this.chain.balance(r.address).then(
+            (b): WalletBalance & { error: null } => ({ ...b, error: null }),
+            (err: Error) => ({ usdtMicro: NaN, trxSun: NaN, error: String(err?.message ?? err).slice(0, 200) }),
+          ),
+        ),
+      );
+      batch.forEach((r, k) => {
+        const b = got[k];
+        const ok = b.error === null;
+        // On a failed read keep the last known numbers rather than showing a hole in the total.
+        const prev = previous.get(r.address);
+        items.push({
+          id: r.id,
+          address: r.address,
+          label: r.label,
+          own: !!r.own,
+          usdtMicro: ok ? b.usdtMicro : (prev?.usdtMicro ?? null),
+          trxSun: ok ? b.trxSun : (prev?.trxSun ?? null),
+          error: b.error,
+        });
+      });
+    }
+    const sum = (list: AdminWalletBalanceDto[], k: 'usdtMicro' | 'trxSun') => list.reduce((s, x) => s + (x[k] ?? 0), 0);
+    const result: AdminWalletBalancesDto = {
+      items,
+      totalUsdtMicro: sum(items, 'usdtMicro'),
+      poolUsdtMicro: sum(items.filter((x) => !x.own), 'usdtMicro'),
+      ownUsdtMicro: sum(items.filter((x) => x.own), 'usdtMicro'),
+      totalTrxSun: sum(items, 'trxSun'),
+      failed: items.filter((x) => x.error).length,
+      checkedAt: this.now(),
+    };
+    this.balanceCache = result;
+    return result;
   }
 
   // ---------- admin: address pool ----------

@@ -392,6 +392,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
     },
     dealReceived: (id) => delay(engine.userDto(engine.userReceived(me.id, id))),
     dealNotReceived: (id) => delay(engine.userDto(engine.userNotReceived(me.id, id))),
+    dealNotYet: (id) => delay(engine.userDto(engine.userNotYet(me.id, id))),
     dealOtherAmount: (id, rub) => delay(engine.userDto(engine.userOtherAmount(me.id, id, rub))),
     notifications: () =>
       delay({
@@ -655,6 +656,20 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       return delay({ items, counts: c, enabled: pool.some((p) => p.enabled && !p.own) });
     },
     depositPool: () => delay({ items: poolList() }),
+    walletBalances: () => {
+      // Demo numbers: own wallets hold the bulk, deposit addresses whatever came in and was not swept yet.
+      const items = pool.map((p, i) => ({
+        id: p.id, address: p.address, label: p.label, own: p.own, error: null,
+        usdtMicro: p.own ? 4_812_350_000 : ((i * 37) % 5) * 25_000_000,
+        trxSun: p.own ? 64_200_000 : ((i * 13) % 4) * 3_000_000,
+      })).sort((a, b) => Number(b.own) - Number(a.own) || a.id - b.id);
+      const sum = (l: typeof items, k: 'usdtMicro' | 'trxSun') => l.reduce((s, x) => s + x[k], 0);
+      return delay({
+        items, failed: 0, checkedAt: now(),
+        totalUsdtMicro: sum(items, 'usdtMicro'), totalTrxSun: sum(items, 'trxSun'),
+        poolUsdtMicro: sum(items.filter((x) => !x.own), 'usdtMicro'), ownUsdtMicro: sum(items.filter((x) => x.own), 'usdtMicro'),
+      });
+    },
     usdtPayouts: (status) => {
       const items = payouts.filter((p) => status === 'all' || p.status === status);
       if (status !== 'new') items.reverse();
@@ -745,7 +760,7 @@ function seedDeals(engine: ReturnType<typeof createDealEngine>, users: MockUser[
     }
     const blocked = !!u(d.userId).botBlockedAt;
     for (let n = 1; n <= reminders; n++) {
-      d.reminders.push({ n, at: at + n * 2 * MIN, delivered: !blocked, error: blocked ? 'Пользователь заблокировал бота' : null });
+      d.reminders.push({ n, at: at + n * 2 * MIN, delivered: !blocked, error: blocked ? 'Пользователь заблокировал бота' : null, reactedAt: null });
       engine.log('system', 'reminder_sent', { userId: d.userId, withdrawalId: d.id, data: { n, delivered: !blocked }, at: at + n * 2 * MIN });
     }
   };

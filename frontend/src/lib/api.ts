@@ -16,6 +16,7 @@ import type {
   AdminOrderListItem,
   AdminUserListItem,
   AdminUserPageDto,
+  AdminWalletBalancesDto,
   AdminWithdrawalDto,
   AdminWithdrawalListItem,
   ArchiveQuery,
@@ -86,6 +87,8 @@ export interface Api {
   usdtPayout(id: number): Promise<UsdtPayoutDto>;
   dealReceived(id: number): Promise<WithdrawalDto>;
   dealNotReceived(id: number): Promise<WithdrawalDto>;
+  /** "Not yet" under reminders 1-4: changes nothing, marks the user as responsive. */
+  dealNotYet(id: number): Promise<WithdrawalDto>;
   dealOtherAmount(id: number, amountRub: number): Promise<WithdrawalDto>;
   notifications(): Promise<{ items: NotificationDto[] }>;
   markNotificationsSeen(ids: number[]): Promise<unknown>;
@@ -150,6 +153,8 @@ export interface AdminApi {
   usdtPayoutSent(id: number, txId: string, force: boolean, note: string): Promise<AdminUsdtPayoutDto>;
   usdtPayoutReject(id: number, reason: string): Promise<AdminUsdtPayoutDto>;
   depositPool(): Promise<{ items: AdminDepositAddressDto[] }>;
+  /** Live USDT/TRX on every pool address and own wallet; refresh bypasses the 1-minute cache. */
+  walletBalances(refresh?: boolean): Promise<AdminWalletBalancesDto>;
   depositPoolAdd(address: string, label: string, own: boolean): Promise<{ items: AdminDepositAddressDto[] }>;
   depositPoolUpdate(id: number, patch: { enabled?: boolean; label?: string }): Promise<{ items: AdminDepositAddressDto[] }>;
   depositPoolRemove(id: number): Promise<{ items: AdminDepositAddressDto[] }>;
@@ -186,6 +191,7 @@ export const httpApi: Api = {
   usdtPayout: (id) => request('GET', `/api/usdt-withdrawals/${id}`, userAuth()),
   dealReceived: (id) => request('POST', `/api/withdrawals/${id}/received`, userAuth(), {}),
   dealNotReceived: (id) => request('POST', `/api/withdrawals/${id}/not-received`, userAuth(), {}),
+  dealNotYet: (id) => request('POST', `/api/withdrawals/${id}/not-yet`, userAuth(), {}),
   dealOtherAmount: (id, amountRub) => request('POST', `/api/withdrawals/${id}/other-amount`, userAuth(), { amountRub }),
   notifications: () => request('GET', '/api/notifications', userAuth()),
   markNotificationsSeen: (ids) => request('POST', '/api/notifications/seen', userAuth(), { ids }),
@@ -237,6 +243,7 @@ export function httpAdminApi(token: string): AdminApi {
     usdtPayoutSent: (id, txId, force, note) => post(`/usdt-withdrawals/${id}/sent`, { txId, force, note }),
     usdtPayoutReject: (id, reason) => post(`/usdt-withdrawals/${id}/reject`, { reason }),
     depositPool: () => request('GET', '/api/admin/deposit-pool', auth),
+    walletBalances: (refresh = false) => request('GET', `/api/admin/deposit-pool/balances${refresh ? '?refresh=1' : ''}`, auth),
     depositPoolAdd: (address, label, own) => post('/deposit-pool', { address, label, own }),
     depositPoolUpdate: (id, patch) => post(`/deposit-pool/${id}`, patch),
     depositPoolRemove: (id) => post(`/deposit-pool/${id}/remove`),

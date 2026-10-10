@@ -6,7 +6,7 @@ import type { UserRepo } from '../users/userRepo.js';
 import { userCan, type UserDealAction } from '../../../shared/deals.js';
 import { inlineMarkup, type InlineButton } from '../notifications/messenger.js';
 import { em, esc } from '../notifications/emoji.js';
-import type { WithdrawalService } from '../withdrawals/withdrawalService.js';
+import { notYetText, type WithdrawalService } from '../withdrawals/withdrawalService.js';
 
 /** Thin Bot API client. */
 export class TelegramApi {
@@ -266,7 +266,8 @@ export class WalletBot {
 
   /**
    * dr = "received" (asks to confirm the amount), dy = confirmed, db = back,
-   * dn = "not received", da = "other amount" without the Mini App URL.
+   * dn = "not received", dw = "not yet" (reminders 1-4, folds the reminder away),
+   * da = "other amount" without the Mini App URL.
    */
   private async onCallback(q: CallbackQuery): Promise<unknown> {
     const answer = (text?: string, alert = false) =>
@@ -285,7 +286,7 @@ export class WalletBot {
       await answer('Свяжитесь с поддержкой', true);
       return this.sendLock(q.from.id);
     }
-    if (!['dr', 'dy', 'db', 'dn', 'da'].includes(kind) || !Number.isInteger(id)) return answer();
+    if (!['dr', 'dy', 'db', 'dn', 'dw', 'da'].includes(kind) || !Number.isInteger(id)) return answer();
 
     let w;
     try {
@@ -325,6 +326,10 @@ export class WalletBot {
           this.deps.withdrawals.userNotReceived(user.id, w.id);
           await answer('С вами свяжется поддержка');
           return edit(`${em('support')} <b>Заявка №${w.id}</b>: вы сообщили, что оплата не поступила. С вами свяжется поддержка. Если деньги придут, подтвердите получение в кошельке.`, this.openWallet());
+        case 'dw':
+          this.deps.withdrawals.userNotYet(user.id, w.id);
+          await answer('Хорошо, ждём. Подтвердите, когда деньги придут');
+          return edit(notYetText(w), this.openWallet());
         case 'da':
           return answer('Откройте кошелёк и укажите сумму, которая поступила', true);
       }

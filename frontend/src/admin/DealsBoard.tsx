@@ -187,6 +187,7 @@ export function DealCard({ d, now, busy, onOpen, onAction, onContact }: {
           Уведомление {d.remindersSent}/{REMINDER_COUNT} · неактивен через {fmtCountdown(d.inactiveAt - now)}
         </div>
       )}
+      {d.status === 'entered' && d.userActiveAt && <div className="ab-line t-ok">На связи: «ещё не поступила» {fmtAgo(d.userActiveAt, now)}</div>}
       {d.section === 'user_confirmed' && <div className="ab-line">Подтвердил {d.userDecidedAt ? fmtAgo(d.userDecidedAt, now) : ''}</div>}
       {d.section === 'not_received' && <div className="ab-line">{d.userDecidedAt ? `Сообщил ${fmtAgo(d.userDecidedAt, now)}` : 'Возвращена на рассмотрение'}</div>}
       {d.section === 'mismatch' && <div className="ab-line">Получил <b>{fmtRub0(d.reportedRub ?? 0)}</b> вместо {fmtRub0(d.amountRub)}</div>}

@@ -429,6 +429,11 @@ const MIGRATIONS: string[] = [
   CREATE INDEX usdt_payouts_user ON usdt_payouts(user_id, created_at);
   ALTER TABLE notifications ADD COLUMN usdt_payout_id INTEGER;
   `,
+  // 9: "money has not arrived yet" under reminders 1-4: marks the user as responsive.
+  `
+  ALTER TABLE withdrawals ADD COLUMN user_active_at INTEGER;
+  ALTER TABLE deal_reminders ADD COLUMN reacted_at INTEGER;
+  `,
 ];
 
 export type Db = DatabaseSync;

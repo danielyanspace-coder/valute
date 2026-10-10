@@ -5,6 +5,7 @@ import type { AdminApi } from '../lib/api';
 import { fmtAgo, fmtCountdown, fmtMicroExact } from '../lib/format';
 import { usePolling } from '../lib/useInterval';
 import { CopyChip, useNow } from './ui';
+import { WalletBalances } from './WalletBalances';
 
 const STATE: Record<AdminDepositAddressDto['state'], { label: string; cls: string }> = {
   free: { label: 'Свободен', cls: 'ok' },
@@ -69,6 +70,8 @@ export function DepositPool({ api }: { api: AdminApi }) {
           Не отправляйте USDT на адреса пополнения с биржи сами: такой перевод зачислится тому, кто держит адрес.
         </span>
       </div>
+
+      <WalletBalances api={api} />
 
       <div className="dp-summary">
         <div><b>{lendable}</b><span>включено</span></div>
