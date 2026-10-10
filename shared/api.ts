@@ -448,6 +448,8 @@ export interface AdminWithdrawalListItem {
   platformDeadline: number | null;
   userDecision: 'received' | 'not_received' | 'other_amount' | null;
   userDecidedAt: number | null;
+  /** Last "money has not arrived yet" press: the user is there and reacting, the deal is unchanged. */
+  userActiveAt: number | null;
   reportedRub: number | null;
   externalId: string | null;
   resolution: DealResolution | null;
@@ -461,6 +463,8 @@ export interface AdminReminderDto {
   at: number;
   delivered: boolean;
   error: string | null;
+  /** The user pressed "not yet" while this reminder was the latest one. */
+  reactedAt: number | null;
 }
 
 export interface AdminWithdrawalDto extends AdminWithdrawalListItem {

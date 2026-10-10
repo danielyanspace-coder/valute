@@ -139,6 +139,9 @@ export function DealDetail({ api, id, onClose, onChanged, onOpenUser, onOpenDeal
           {d.nextReminderAt ? `, следующее через ${fmtCountdown(d.nextReminderAt - now)}` : ''}. Станет неактивным через {fmtCountdown(d.inactiveAt - now)}.
         </div>
       )}
+      {d.status === 'entered' && d.userActiveAt && (
+        <div className="adm-banner ok">Пользователь на связи: нажал «Оплата ещё не поступила» {fmtDateTime(d.userActiveAt)}. На сделку это не влияет.</div>
+      )}
       {platformLeft !== null && (d.status === 'entered' || d.status === 'user_confirmed') && (
         <div className={`adm-banner ${platformLeft < 3 * 60_000 ? 'danger' : ''}`}>
           {platformLeft > 0 ? `Таймер площадки: сделка слетит через ${fmtCountdown(platformLeft)}` : 'Таймер площадки (15 минут) истёк'}
@@ -209,6 +212,7 @@ export function DealDetail({ api, id, onClose, onChanged, onOpenUser, onOpenDeal
           {d.takenAt && <Row k="Взята в работу" v={fmtDateTime(d.takenAt)} />}
           {d.enteredAt && <Row k="Исполнитель вошёл" v={fmtDateTime(d.enteredAt)} />}
           {d.requisiteOffAt && <Row k="Реквизит отключён" v={fmtDateTime(d.requisiteOffAt)} />}
+          {d.userActiveAt && <Row k="На связи («ещё не поступила»)" v={fmtDateTime(d.userActiveAt)} />}
           {d.userDecidedAt && <Row k="Ответ пользователя" v={`${decision(d.userDecision)} · ${fmtDateTime(d.userDecidedAt)}`} />}
           {d.inactiveSince && <Row k="Неактивен с" v={fmtDateTime(d.inactiveSince)} />}
           {d.finishedAt && <Row k="Завершена" v={fmtDateTime(d.finishedAt)} />}
@@ -219,6 +223,7 @@ export function DealDetail({ api, id, onClose, onChanged, onOpenUser, onOpenDeal
               <span>№{r.n}</span>
               <span>{fmtTime(r.at)}</span>
               <span className={r.delivered ? 't-ok' : 't-danger'}>{r.delivered ? 'доставлено' : r.error ?? 'не доставлено'}</span>
+              {r.reactedAt && <span className="t-ok">«ещё не поступила» {fmtTime(r.reactedAt)}</span>}
             </div>
           ))}
         </Card>

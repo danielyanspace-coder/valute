@@ -95,6 +95,7 @@ export interface WithdrawalRow {
   inactive_since: number | null;
   user_decision: 'received' | 'not_received' | 'other_amount' | null;
   user_decided_at: number | null;
+  user_active_at: number | null;
   reported_rub: number | null;
   user_confirmed_at: number | null;
   final_rub: number | null;
@@ -276,6 +277,25 @@ export class WithdrawalService {
       return this.row(id)!;
     });
     this.clearBotButtons(row, `${em('support')} <b>Заявка №${row.id}</b>: вы сообщили, что оплата не поступила. С вами свяжется поддержка. Если деньги придут, подтвердите получение в кошельке.`);
+    return row;
+  }
+
+  /**
+   * "The money has not arrived yet" under reminders 1-4. The deal, its timer and the money
+   * stay as they are; the operator only sees that the user is there and reacting.
+   */
+  userNotYet(userId: number, id: number): WithdrawalRow {
+    const w = this.userGuard(userId, id, 'not_yet');
+    const now = this.now();
+    const row = transaction(this.db, () => {
+      this.db.prepare('UPDATE withdrawals SET user_active_at = ? WHERE id = ?').run(now, id);
+      this.db
+        .prepare('UPDATE deal_reminders SET reacted_at = ? WHERE withdrawal_id = ? AND n = ? AND reacted_at IS NULL')
+        .run(now, id, w.reminders_sent);
+      this.log(id, w.user_id, 'user', 'user_not_yet', { amountRub: w.amount_rub, data: { reminder: w.reminders_sent, responseMs: this.responseMs(w) } });
+      return this.row(id)!;
+    });
+    this.clearBotButtons(row, notYetText(row));
     return row;
   }
 
@@ -565,6 +585,7 @@ export class WithdrawalService {
     const rows: InlineButton[][] = [];
     if (actions.includes('received')) rows.push([{ text: receivedLabel, callback: `dr:${w.id}` }]);
     if (actions.includes('not_received')) rows.push([{ text: 'Оплата не поступила', callback: `dn:${w.id}` }]);
+    if (actions.includes('not_yet')) rows.push([{ text: 'Оплата ещё не поступила', callback: `dw:${w.id}` }]);
     if (actions.includes('other_amount')) {
       rows.push([
         this.webAppUrl
@@ -656,13 +677,14 @@ export class WithdrawalService {
         .all(w.user_id, id) as unknown as WithdrawalRow[]
     ).map((r) => this.listItem(r));
     const reminders = (
-      this.db.prepare('SELECT n, at, delivered, error FROM deal_reminders WHERE withdrawal_id = ? ORDER BY n').all(id) as unknown as {
+      this.db.prepare('SELECT n, at, delivered, error, reacted_at FROM deal_reminders WHERE withdrawal_id = ? ORDER BY n').all(id) as unknown as {
         n: number;
         at: number;
         delivered: number;
         error: string | null;
+        reacted_at: number | null;
       }[]
-    ).map((r): AdminReminderDto => ({ n: r.n, at: r.at, delivered: !!r.delivered, error: r.error }));
+    ).map((r): AdminReminderDto => ({ n: r.n, at: r.at, delivered: !!r.delivered, error: r.error, reactedAt: r.reacted_at }));
     const correction =
       w.status === 'mismatch' && w.reported_rub
         ? { reportedRub: w.reported_rub, ...correctionPlan(w.amount_micro, w.rate, w.reported_rub, this.ledger.balances(w.user_id).availableMicro) }
@@ -839,6 +861,7 @@ export class WithdrawalService {
       platformDeadline: entered && !w.finished_at ? entered + PLATFORM_TIMER_MS : null,
       userDecision: w.user_decision,
       userDecidedAt: w.user_decided_at,
+      userActiveAt: w.user_active_at,
       reportedRub: w.reported_rub,
       externalId: w.external_id,
       resolution: w.resolution,
@@ -885,6 +908,11 @@ export class WithdrawalService {
     if (!w) throw new AppError(404, 'not_found', 'Заявка не найдена');
     return w;
   }
+}
+
+/** The folded reminder: what stays in the chat after "not yet". */
+export function notYetText(w: { id: number; amount_rub: number }): string {
+  return `${em('pending')} <b>Заявка №${w.id}</b>: ждём поступления ${rub(w.amount_rub)}. Как только деньги придут, подтвердите получение в кошельке.`;
 }
 
 function destination(w: WithdrawalRow): string {

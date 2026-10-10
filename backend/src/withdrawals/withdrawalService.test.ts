@@ -131,7 +131,8 @@ describe('reminders and inactivity', () => {
       expect(messenger.sent).toHaveLength(n);
     }
     expect(messenger.sent[0].text).toMatch(/Деньги начали путь/);
-    expect(messenger.sent[0].buttons!.flat().map((b) => b.text)).toEqual(['Подтвердить получение', 'Поступила другая сумма']);
+    expect(messenger.sent[0].buttons!.flat().map((b) => b.text)).toEqual(['Подтвердить получение', 'Оплата ещё не поступила', 'Поступила другая сумма']);
+    expect(messenger.sent[3].buttons!.flat().map((b) => b.text)).toContain('Оплата ещё не поступила');
     expect(messenger.sent[3].text).toMatch(/последним/);
     expect(messenger.sent[4].text).toMatch(/в течение 2 минут/);
     expect(messenger.sent[4].buttons!.flat().map((b) => b.text)).toEqual(['Оплата поступила', 'Оплата не поступила', 'Поступила другая сумма']);
@@ -184,10 +185,37 @@ describe('user answers', () => {
     expect(svc.toUserDto(svc.row(w.id)!).actions).toEqual([]);
     expect(() => svc.userReceived(user.id, w.id)).toThrow(/недоступно/);
     now += REMINDER_INTERVAL_MS;
-    expect(svc.toUserDto(svc.row(w.id)!).actions).toEqual(['received', 'other_amount']);
+    expect(svc.toUserDto(svc.row(w.id)!).actions).toEqual(['received', 'not_yet', 'other_amount']);
     expect(() => svc.userNotReceived(user.id, w.id)).toThrow(/недоступно/);
     now += 4 * REMINDER_INTERVAL_MS;
     expect(svc.toUserDto(svc.row(w.id)!).actions).toEqual(['received', 'not_received', 'other_amount']);
+    expect(() => svc.userNotYet(user.id, w.id)).toThrow(/недоступно/);
+  });
+
+  it('"not yet" under reminders 1-4 changes nothing but marks the user as responsive', async () => {
+    const w = enteredDeal();
+    const t0 = now;
+    expect(() => svc.userNotYet(user.id, w.id)).toThrow(/недоступно/); // no reminder yet
+    now = t0 + REMINDER_INTERVAL_MS;
+    await svc.tick();
+    now = t0 + 2 * REMINDER_INTERVAL_MS;
+    await svc.tick();
+    const before = svc.row(w.id)!;
+    svc.userNotYet(user.id, w.id);
+    const after = svc.row(w.id)!;
+    expect(after).toMatchObject({ status: 'entered', entered_at: before.entered_at, reminders_sent: 2, user_decision: null, user_active_at: now });
+    expect(bal()).toEqual({ availableMicro: 50 * U, frozenMicro: 100 * U });
+    expect(types(w.id)).toContain('user_not_yet');
+    // The bot reminder is folded: text only, no buttons.
+    expect(messenger.edits.at(-1)).toMatchObject({ messageId: after.bot_message_id, text: expect.stringMatching(/ждём поступления 8\s000 ₽/) });
+    const admin = svc.adminGet(w.id);
+    expect(admin.userActiveAt).toBe(now);
+    expect(admin.reminders.map((r) => r.reactedAt)).toEqual([null, now]);
+
+    // The timer keeps running: silence after the 5th reminder still makes the deal inactive.
+    now = t0 + INACTIVE_AFTER_MS;
+    await svc.tick();
+    expect(svc.row(w.id)!.status).toBe('inactive');
   });
 
   it('"received" writes USDT off at once and is final for the user; the operator closes it', () => {

@@ -10,6 +10,7 @@ export const AUDIT_TYPES = {
   reminder_sent: 'Отправлено уведомление',
   user_received: 'Пользователь подтвердил получение',
   user_not_received: 'Пользователь: оплата не поступила',
+  user_not_yet: 'Пользователь на связи: оплата ещё не поступила',
   user_other_amount: 'Пользователь: другая сумма',
   deal_inactive: 'Пользователь неактивен',
   admin_confirmed: 'Подтверждено вручную',
@@ -41,7 +42,7 @@ export type AuditType = keyof typeof AUDIT_TYPES;
 /** Groups for the journal filter. */
 export const AUDIT_GROUPS: { id: string; label: string; types: AuditType[] }[] = [
   { id: 'deal', label: 'Сделки', types: ['deal_created', 'deal_taken', 'deal_entered', 'requisite_off', 'deal_inactive', 'deal_closed', 'deal_reopened', 'external_id_set', 'note'] },
-  { id: 'user', label: 'Действия пользователя', types: ['user_received', 'user_not_received', 'user_other_amount'] },
+  { id: 'user', label: 'Действия пользователя', types: ['user_received', 'user_not_yet', 'user_not_received', 'user_other_amount'] },
   { id: 'notify', label: 'Уведомления', types: ['reminder_sent', 'broadcast_sent'] },
   { id: 'money', label: 'Деньги', types: ['admin_confirmed', 'correction_accepted', 'original_accepted', 'deal_cancelled', 'manual_adjustment', 'deposit_credited', 'usdt_payout_created', 'usdt_payout_sent', 'usdt_payout_rejected'] },
   { id: 'shadow', label: 'Теневые заморозки', types: ['obligation_created', 'obligation_repaid', 'obligation_written_off'] },

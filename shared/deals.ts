@@ -110,7 +110,11 @@ export const ADMIN_ACTION_LABEL: Record<AdminDealAction, string> = {
 
 // ---------- User actions ----------
 
-export type UserDealAction = 'received' | 'not_received' | 'other_amount';
+/**
+ * not_yet = "the money has not arrived yet", offered under reminders 1-4 instead of
+ * not_received: it changes nothing in the deal, only tells the operator the user is there.
+ */
+export type UserDealAction = 'received' | 'not_received' | 'not_yet' | 'other_amount';
 
 export interface DealTiming {
   status: DealStatus;
@@ -120,14 +124,15 @@ export interface DealTiming {
 /**
  * What the user may press right now. Nothing before the first reminder (the money
  * may still be on its way); "not received" only from the 5th reminder on, so people
- * do not press it while the bank is still processing the transfer.
+ * do not press it while the bank is still processing the transfer. Until then they get
+ * "not yet", which only folds the reminder away.
  */
 export function userActions(d: DealTiming, now: number): UserDealAction[] {
   switch (d.status) {
     case 'entered': {
       if (d.enteredAt === null || now < d.enteredAt + REMINDER_INTERVAL_MS) return [];
       const last = now >= d.enteredAt + REMINDER_COUNT * REMINDER_INTERVAL_MS;
-      return last ? ['received', 'not_received', 'other_amount'] : ['received', 'other_amount'];
+      return last ? ['received', 'not_received', 'other_amount'] : ['received', 'not_yet', 'other_amount'];
     }
     case 'not_received':
       return ['received', 'other_amount'];

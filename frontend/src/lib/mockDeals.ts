@@ -97,10 +97,11 @@ interface Deal {
   enteredAt: number | null;
   requisiteOffAt: number | null;
   remindersSent: number;
-  reminders: { n: number; at: number; delivered: boolean; error: string | null }[];
+  reminders: { n: number; at: number; delivered: boolean; error: string | null; reactedAt: number | null }[];
   inactiveSince: number | null;
   userDecision: 'received' | 'not_received' | 'other_amount' | null;
   userDecidedAt: number | null;
+  userActiveAt: number | null;
   reportedRub: number | null;
   userConfirmedAt: number | null;
   finalRub: number | null;
@@ -251,7 +252,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
       nextReminderAt: d.status === 'entered' && d.enteredAt ? nextReminderAt(d.enteredAt, d.remindersSent) : null,
       inactiveAt: d.status === 'entered' && d.enteredAt ? d.enteredAt + INACTIVE_AFTER_MS : null,
       platformDeadline: d.enteredAt && !d.finishedAt ? d.enteredAt + PLATFORM_TIMER_MS : null,
-      userDecision: d.userDecision, userDecidedAt: d.userDecidedAt, reportedRub: d.reportedRub, externalId: d.externalId,
+      userDecision: d.userDecision, userDecidedAt: d.userDecidedAt, userActiveAt: d.userActiveAt, reportedRub: d.reportedRub, externalId: d.externalId,
       resolution: d.resolution, finalRub: d.finalRub, finishedAt: d.finishedAt,
       user: { id: u.id, username: u.username, firstName: u.firstName, telegramId: u.telegramId, supportLocked: !!u.supportLockedAt, botBlocked: !!u.botBlockedAt },
     };
@@ -358,7 +359,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
     const d: Deal = {
       ...p, id: ++dealId, userId: u.id, exchangeRate: Math.round((p.rate / 1.05) * 100) / 100, balanceBeforeMicro: u.availableMicro,
       status: 'new', takenAt: null, enteredAt: null, requisiteOffAt: null, remindersSent: 0, reminders: [], inactiveSince: null,
-      userDecision: null, userDecidedAt: null, reportedRub: null, userConfirmedAt: null, finalRub: null, debitedMicro: null,
+      userDecision: null, userDecidedAt: null, userActiveAt: null, reportedRub: null, userConfirmedAt: null, finalRub: null, debitedMicro: null,
       refundedMicro: null, resolution: null, externalId: null, finishedAt: null, platform: 'ios',
     };
     u.availableMicro -= d.amountMicro;
@@ -390,6 +391,14 @@ export function createDealEngine(ctx: DealEngineCtx) {
     const d = guard(userId, id, 'not_received');
     Object.assign(d, { status: 'not_received', userDecision: 'not_received', userDecidedAt: now(), reportedRub: null });
     log('user', 'user_not_received', { userId, withdrawalId: id, amountRub: d.amountRub });
+    return d;
+  };
+  const userNotYet = (userId: number, id: number) => {
+    const d = guard(userId, id, 'not_yet');
+    d.userActiveAt = now();
+    const r = d.reminders.find((x) => x.n === d.remindersSent);
+    if (r && r.reactedAt === null) r.reactedAt = d.userActiveAt;
+    log('user', 'user_not_yet', { userId, withdrawalId: id, amountRub: d.amountRub, data: { reminder: d.remindersSent } });
     return d;
   };
   const userOtherAmount = (userId: number, id: number, rub: number) => {
@@ -500,7 +509,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
         d.remindersSent = due;
         const owner = user(d.userId);
         const error = owner.supportLockedAt ? 'Заблокирован до связи с поддержкой' : owner.botBlockedAt ? 'Пользователь заблокировал бота' : null;
-        d.reminders.push({ n: due, at: t, delivered: !error, error });
+        d.reminders.push({ n: due, at: t, delivered: !error, error, reactedAt: null });
         log('system', 'reminder_sent', { userId: d.userId, withdrawalId: d.id, data: { n: due, delivered: !error, error } });
         if (!owner.supportLockedAt) ctx.notify(d.userId, 'deal_reminder', d.id);
       }
@@ -632,6 +641,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
     create,
     userReceived,
     userNotReceived,
+    userNotYet,
     userOtherAmount,
     contactLock,
     assertNotLocked,

@@ -103,6 +103,10 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     deps.withdrawals.toUserDto(deps.withdrawals.userNotReceived(req.user!.id, Number(req.params.id))),
   );
 
+  app.post<{ Params: { id: string } }>('/api/withdrawals/:id/not-yet', async (req) =>
+    deps.withdrawals.toUserDto(deps.withdrawals.userNotYet(req.user!.id, Number(req.params.id))),
+  );
+
   app.post<{ Params: { id: string }; Body: { amountRub?: number } }>('/api/withdrawals/:id/other-amount', async (req) =>
     deps.withdrawals.toUserDto(deps.withdrawals.userOtherAmount(req.user!.id, Number(req.params.id), Number(req.body?.amountRub))),
   );

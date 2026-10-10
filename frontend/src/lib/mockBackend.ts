@@ -392,6 +392,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
     },
     dealReceived: (id) => delay(engine.userDto(engine.userReceived(me.id, id))),
     dealNotReceived: (id) => delay(engine.userDto(engine.userNotReceived(me.id, id))),
+    dealNotYet: (id) => delay(engine.userDto(engine.userNotYet(me.id, id))),
     dealOtherAmount: (id, rub) => delay(engine.userDto(engine.userOtherAmount(me.id, id, rub))),
     notifications: () =>
       delay({
@@ -745,7 +746,7 @@ function seedDeals(engine: ReturnType<typeof createDealEngine>, users: MockUser[
     }
     const blocked = !!u(d.userId).botBlockedAt;
     for (let n = 1; n <= reminders; n++) {
-      d.reminders.push({ n, at: at + n * 2 * MIN, delivered: !blocked, error: blocked ? 'Пользователь заблокировал бота' : null });
+      d.reminders.push({ n, at: at + n * 2 * MIN, delivered: !blocked, error: blocked ? 'Пользователь заблокировал бота' : null, reactedAt: null });
       engine.log('system', 'reminder_sent', { userId: d.userId, withdrawalId: d.id, data: { n, delivered: !blocked }, at: at + n * 2 * MIN });
     }
   };

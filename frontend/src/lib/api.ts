@@ -86,6 +86,8 @@ export interface Api {
   usdtPayout(id: number): Promise<UsdtPayoutDto>;
   dealReceived(id: number): Promise<WithdrawalDto>;
   dealNotReceived(id: number): Promise<WithdrawalDto>;
+  /** "Not yet" under reminders 1-4: changes nothing, marks the user as responsive. */
+  dealNotYet(id: number): Promise<WithdrawalDto>;
   dealOtherAmount(id: number, amountRub: number): Promise<WithdrawalDto>;
   notifications(): Promise<{ items: NotificationDto[] }>;
   markNotificationsSeen(ids: number[]): Promise<unknown>;
@@ -186,6 +188,7 @@ export const httpApi: Api = {
   usdtPayout: (id) => request('GET', `/api/usdt-withdrawals/${id}`, userAuth()),
   dealReceived: (id) => request('POST', `/api/withdrawals/${id}/received`, userAuth(), {}),
   dealNotReceived: (id) => request('POST', `/api/withdrawals/${id}/not-received`, userAuth(), {}),
+  dealNotYet: (id) => request('POST', `/api/withdrawals/${id}/not-yet`, userAuth(), {}),
   dealOtherAmount: (id, amountRub) => request('POST', `/api/withdrawals/${id}/other-amount`, userAuth(), { amountRub }),
   notifications: () => request('GET', '/api/notifications', userAuth()),
   markNotificationsSeen: (ids) => request('POST', '/api/notifications/seen', userAuth(), { ids }),

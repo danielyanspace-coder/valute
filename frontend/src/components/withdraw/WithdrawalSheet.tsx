@@ -77,6 +77,24 @@ export function WithdrawalSheet({ id, onClose, onChanged, supportUsername, start
     }
   };
 
+  // "Not yet" changes nothing in the deal: it only tells the operator the user is there, so the sheet just folds away.
+  const notYet = async () => {
+    if (!w) return;
+    haptic();
+    setBusy(true);
+    setError(null);
+    try {
+      await api.dealNotYet(w.id);
+      onChanged();
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+      hapticNotify('error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const now = Date.now() + skew;
   const can = (a: WithdrawalDto['actions'][number]) => !!w?.actions.includes(a);
   const otherRub = Number(other.replace(/\D/g, ''));
@@ -116,6 +134,9 @@ export function WithdrawalSheet({ id, onClose, onChanged, supportUsername, start
                   <button className="btn success block" disabled={busy} onClick={() => { haptic(); setMode('confirm'); }}>
                     {w.status === 'entered' ? 'Подтвердить получение' : 'Оплата поступила'}
                   </button>
+                )}
+                {can('not_yet') && (
+                  <button className="btn ghost block" disabled={busy} onClick={notYet}>Оплата ещё не поступила</button>
                 )}
                 {can('other_amount') && (
                   <button className="btn ghost block" disabled={busy} onClick={() => { haptic(); setMode('other'); }}>Поступила другая сумма</button>

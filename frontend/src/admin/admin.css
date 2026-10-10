@@ -220,6 +220,7 @@
 .ab-dest { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #c9cfdb; min-width: 0; }
 .ab-dest span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ab-line { font-size: 12.5px; color: #c9cfdb; }
+.ab-line.t-ok { color: var(--green); }
 .ab-reminder { font-size: 12.5px; line-height: 1.4; padding: 8px 10px; border-radius: 10px; background: rgba(255, 212, 59, 0.12); color: #ffe38a; border: 1px solid rgba(255, 212, 59, 0.35); }
 .ab-reminder.small { font-size: 11.5px; padding: 6px 8px; }
 .ab-timer { font-size: 12px; font-weight: 700; color: #c9cfdb; font-variant-numeric: tabular-nums; }
@@ -251,7 +252,7 @@ body.ab-noscroll { overflow: hidden; }
 .ab-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .ab-x { width: 38px; height: 38px; flex-shrink: 0; border-radius: 10px; border: 1px solid var(--border); color: var(--muted); font-size: 16px; }
 .ab-sub { margin-top: 10px; font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--muted); }
-.ab-reminder-row { display: grid; grid-template-columns: 36px 80px 1fr; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.ab-reminder-row { display: grid; grid-template-columns: 36px 80px 1fr auto; gap: 8px; padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .ab-mini { width: 100%; display: grid; grid-template-columns: 64px 110px auto 1fr; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); text-align: left; font-variant-numeric: tabular-nums; }
 .ab-mini .adm-muted { text-align: right; font-size: 12px; }
 
