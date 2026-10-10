@@ -28,7 +28,6 @@ export function Header({ user, supportUnread, onSupport, onHelp, onProfile, them
         </div>
         <div className="header-names">
           <div className="header-name">{name}</div>
-          {user?.username && <div className="header-username">@{user.username}</div>}
         </div>
       </button>
       <div className="header-actions">
