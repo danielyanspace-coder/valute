@@ -112,6 +112,8 @@ export interface DepositServiceOptions {
   minDepositMicro: number;
   /** Address checks per tick, to stay inside TronGrid limits. */
   batchSize: number;
+  /** Pause between wallets when reading balances for the admin panel (TronGrid rate limit). */
+  balancePauseMs?: number;
   audit?: AuditLog;
   log?: { warn: (obj: unknown, msg?: string) => void; info: (obj: unknown, msg?: string) => void };
 }
@@ -566,9 +568,11 @@ export class DepositService {
     const rows = this.db.prepare('SELECT id, address, label, own FROM deposit_pool ORDER BY own DESC, id').all() as unknown as Pick<PoolRow, 'id' | 'address' | 'label' | 'own'>[];
     const previous = new Map(this.balanceCache?.items.map((i) => [i.address, i]));
     const items: AdminWalletBalanceDto[] = [];
-    // A few at a time: TronGrid allows ~15 requests a second per key, shared with the watcher.
-    for (let i = 0; i < rows.length; i += 3) {
-      const batch = rows.slice(i, i + 3);
+    // One wallet at a time with a pause: TronGrid suspends the whole key for 30 s past 15 requests
+    // a second, and the same key watches deposits. A dozen wallets take a few seconds, once a minute.
+    for (let i = 0; i < rows.length; i++) {
+      if (i > 0 && this.opts.balancePauseMs) await new Promise((r) => setTimeout(r, this.opts.balancePauseMs));
+      const batch = rows.slice(i, i + 1);
       const got = await Promise.all(
         batch.map((r) =>
           this.chain.balance(r.address).then(

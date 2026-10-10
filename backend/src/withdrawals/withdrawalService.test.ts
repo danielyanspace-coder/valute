@@ -135,6 +135,10 @@ describe('reminders and inactivity', () => {
     expect(messenger.sent[3].buttons!.flat().map((b) => b.text)).toContain('Оплата ещё не поступила');
     expect(messenger.sent[3].text).toMatch(/последним/);
     expect(messenger.sent[4].text).toMatch(/в течение 2 минут/);
+    // Escalation: calm yellow for 1-3, red from the 4th; every reminder starts with its sign.
+    expect(messenger.sent.map((m) => [...m.text][0])).toEqual(['⚠', '⚠', '⚠', '❗', '🚨']);
+    expect(messenger.sent[4].text).toMatch(/<b>Последнее уведомление по заявке №\d+<\/b>/);
+    expect(messenger.sent[4].text).toMatch(/только если деньги действительно пришли/);
     expect(messenger.sent[4].buttons!.flat().map((b) => b.text)).toEqual(['Оплата поступила', 'Оплата не поступила', 'Поступила другая сумма']);
     // Earlier reminders lose their buttons when the next one goes out.
     expect(messenger.edits.length).toBeGreaterThanOrEqual(4);

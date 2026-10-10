@@ -72,6 +72,7 @@ const aml = new AmlService(amlChecks);
 const depositOpts: DepositServiceOptions = {
   minDepositMicro: Math.round(config.depositMinUsdt * USDT_MICRO),
   batchSize: config.depositBatch,
+  balancePauseMs: 300,
   audit,
 };
 const tronGrid = new TronGridClient(config.tronGridUrl, config.tronGridApiKey);

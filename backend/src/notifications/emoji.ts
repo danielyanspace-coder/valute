@@ -11,6 +11,8 @@ export const EMOJI = {
   pending: '⏳',
   clock: '⏰',
   warning: '⚠️',
+  urgent: '❗️',
+  critical: '🚨',
   check: '🎟',
   usdt: '💵',
   lock: '🔒',

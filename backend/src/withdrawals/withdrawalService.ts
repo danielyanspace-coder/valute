@@ -18,7 +18,6 @@ import {
   boardSection,
   correctionPlan,
   nextReminderAt,
-  REMINDER_COUNT,
   reminderMessage,
   remindersDue,
   userActions,
@@ -544,10 +543,10 @@ export class WithdrawalService {
     }
   }
 
-  /** Reminder n of 5 as bot HTML: the last one is a warning. */
+  /** Reminder n of 5 as bot HTML: yellow ⚠️ for 1-3, red ❗️ for the 4th, 🚨 for the last. */
   reminder(n: number, w: WithdrawalRow): { text: string; receivedLabel: string } {
     const msg = reminderMessage(n, w.amount_rub, w.id);
-    return { ...msg, text: `${em(n >= REMINDER_COUNT ? 'warning' : 'clock')} ${msg.text}` };
+    return { receivedLabel: msg.receivedLabel, text: `${em(msg.level)} <b>${msg.title}</b>\n\n${msg.text}` };
   }
 
   private async sendReminder(w: WithdrawalRow, n: number): Promise<void> {

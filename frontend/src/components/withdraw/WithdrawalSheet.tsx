@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { WithdrawalDto } from '../../../../shared/api';
-import { INACTIVE_AFTER_MS, userStatusLabel } from '../../../../shared/deals';
+import { INACTIVE_AFTER_MS, reminderLevel, remindersDue, userStatusLabel, type ReminderLevel } from '../../../../shared/deals';
 import { api } from '../../lib/backend';
 import { fmtCountdown, fmtDateTime, fmtMicro, fmtRub, fmtRub0 } from '../../lib/format';
 import { haptic, hapticNotify, openTelegramChat } from '../../lib/telegram';
@@ -96,6 +96,8 @@ export function WithdrawalSheet({ id, onClose, onChanged, supportUsername, start
   };
 
   const now = Date.now() + skew;
+  // Same escalation as the bot reminders: yellow while the bank may still be processing, red from the 4th.
+  const level: ReminderLevel | null = w?.status === 'entered' && w.enteredAt ? reminderLevel(Math.max(1, remindersDue(w.enteredAt, now))) : null;
   const can = (a: WithdrawalDto['actions'][number]) => !!w?.actions.includes(a);
   const otherRub = Number(other.replace(/\D/g, ''));
   const support = supportUsername ? (
@@ -121,9 +123,9 @@ export function WithdrawalSheet({ id, onClose, onChanged, supportUsername, start
           )}
 
           {w.actions.length > 0 && mode === 'idle' && (
-            <div className="confirm-box">
-              <b>{boxTitle(w)}</b>
-              <p>{boxText(w)}</p>
+            <div className={`confirm-box lvl-${level ?? 'none'}`}>
+              <b>{boxTitle(w, level)}</b>
+              <p>{boxText(w, level)}</p>
               {w.status === 'entered' && w.enteredAt && (
                 <div className="countdown">
                   <IconClock size={15} /> Осталось {fmtCountdown(w.enteredAt + INACTIVE_AFTER_MS - now)}
@@ -219,7 +221,14 @@ export function WithdrawalSheet({ id, onClose, onChanged, supportUsername, start
   );
 }
 
-function boxTitle(w: WithdrawalDto): string {
+const LEVEL_TITLE: Record<ReminderLevel, string> = {
+  warning: '⚠️ Подтвердите поступление',
+  urgent: '❗️ Требуется ваш ответ',
+  critical: '🚨 Последнее уведомление',
+};
+
+function boxTitle(w: WithdrawalDto, level: ReminderLevel | null): string {
+  if (level) return LEVEL_TITLE[level];
   switch (w.status) {
     case 'not_received':
       return 'Проверяем платёж';
@@ -232,7 +241,10 @@ function boxTitle(w: WithdrawalDto): string {
   }
 }
 
-function boxText(w: WithdrawalDto): string {
+function boxText(w: WithdrawalDto, level: ReminderLevel | null): string {
+  const sum = fmtRub0(w.amountRub);
+  if (level === 'urgent') return `Проверьте поступление ${sum} прямо сейчас. Следующее уведомление будет последним: без ответа сделка уйдёт на проверку, а кошелёк будет приостановлен.`;
+  if (level === 'critical') return `Деньги должны были поступить (${sum}). Ответьте до конца таймера, иначе кошелёк будет приостановлен до вашего ответа. Подтверждайте, только если деньги действительно пришли.`;
   switch (w.status) {
     case 'not_received':
       return 'Вы сообщили, что оплата не поступила. С вами свяжется поддержка. Если деньги пришли, подтвердите получение.';

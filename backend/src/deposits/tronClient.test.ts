@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tronAddressFromHex, tronAddressToHex } from './tronHd.js';
-import { balanceFromAccount, USDT_TRC20, verdictFromTxInfo } from './tronClient.js';
+import { trxFromAccount, usdtFromBalanceOf, verdictFromTxInfo } from './tronClient.js';
 
 // Real mainnet tx: 5 USDT from TYr4DL... to TV6MuM... (solidity node response).
 const INFO = {
@@ -53,14 +53,17 @@ describe('hex addresses', () => {
   });
 });
 
-describe('balanceFromAccount', () => {
-  it('counts only the Tether contract and TRX; a new address is all zeros', () => {
-    const account = {
-      balance: 12_500_000,
-      trc20: [{ TXL6rJbvmjD46zeN1JssfgxvSo99qC8MRT: '999000000' }, { [USDT_TRC20]: '157939862582' }],
-    };
-    expect(balanceFromAccount(account)).toEqual({ usdtMicro: 157_939_862_582, trxSun: 12_500_000 });
-    expect(balanceFromAccount(undefined)).toEqual({ usdtMicro: 0, trxSun: 0 });
-    expect(balanceFromAccount({ balance: 0 })).toEqual({ usdtMicro: 0, trxSun: 0 });
+describe('wallet balance', () => {
+  it('reads USDT from balanceOf, also for an address that never held TRX', () => {
+    // Real answer for TSS1ca… holding 2.6 USDT and no TRX (the account index returns nothing).
+    const call = { result: { result: true }, constant_result: ['27ac40'.padStart(64, '0')] };
+    expect(usdtFromBalanceOf(call)).toBe(2_600_000);
+    expect(trxFromAccount(undefined)).toBe(0);
+    expect(trxFromAccount({ balance: 12_500_000 })).toBe(12_500_000);
+  });
+
+  it('a failed call is an error, never a silent zero', () => {
+    expect(() => usdtFromBalanceOf({ result: { code: 'CONTRACT_VALIDATE_ERROR' } })).toThrow(/balanceOf failed/);
+    expect(() => usdtFromBalanceOf({})).toThrow();
   });
 });

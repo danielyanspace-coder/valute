@@ -95,22 +95,37 @@ export class TronGridClient implements TronChain {
     return verdictFromTxInfo(info, address);
   }
 
+  /**
+   * USDT straight from the Tether contract (balanceOf): the account index knows nothing about
+   * an address that has never held TRX, yet such an address can hold USDT. TRX from the index.
+   */
   async balance(address: string): Promise<WalletBalance> {
-    const res: any = await this.request(`/v1/accounts/${address}`);
-    return balanceFromAccount(res?.data?.[0]);
+    // One after the other: the key's 15 requests a second are shared with the deposit watcher.
+    const call: any = await this.request('/wallet/triggerconstantcontract', {
+      owner_address: USDT_TRC20,
+      contract_address: USDT_TRC20,
+      function_selector: 'balanceOf(address)',
+      parameter: tronAddressToHex(address).slice(2).padStart(64, '0'),
+      visible: true,
+    });
+    const account: any = await this.request(`/v1/accounts/${address}`);
+    return { usdtMicro: usdtFromBalanceOf(call), trxSun: trxFromAccount(account?.data?.[0]) };
   }
 }
 
-/** Pure part of balance(), exported for tests. Tokens other than the Tether contract are ignored. */
-export function balanceFromAccount(account: any): WalletBalance {
-  if (!account) return { usdtMicro: 0, trxSun: 0 };
-  let usdt = 0n;
-  for (const t of account.trc20 ?? []) {
-    const v = t?.[USDT_TRC20];
-    if (typeof v === 'string' && /^\d+$/.test(v)) usdt += BigInt(v);
+/** Pure part of balance(): the uint256 balanceOf returned. Throws rather than report a wrong zero. */
+export function usdtFromBalanceOf(call: any): number {
+  const hex = call?.constant_result?.[0];
+  if (call?.result?.result !== true || typeof hex !== 'string' || !/^[0-9a-f]{1,64}$/i.test(hex)) {
+    throw new Error(`balanceOf failed: ${JSON.stringify(call?.result ?? call).slice(0, 150)}`);
   }
-  const trx = Number(account.balance ?? 0);
-  return { usdtMicro: Number(usdt), trxSun: Number.isFinite(trx) && trx > 0 ? trx : 0 };
+  return Number(BigInt(`0x${hex}`));
+}
+
+/** TRX in sun; an address that never held TRX is not in the index at all: zero. */
+export function trxFromAccount(account: any): number {
+  const trx = Number(account?.balance ?? 0);
+  return Number.isFinite(trx) && trx > 0 ? trx : 0;
 }
 
 /** Pure part of verification, exported for tests. */
