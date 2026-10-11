@@ -41,7 +41,7 @@ html, body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Golos Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   overscroll-behavior: none;
 }
@@ -1123,17 +1123,6 @@ button.card:active { transform: scale(0.98); border-color: var(--border-strong);
 .tiny { font-size: 11px; }
 
 /* ---------- Giveaway ---------- */
-.giveaway {
-  position: relative; overflow: hidden; display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 14px 14px 16px; text-align: left;
-}
-.giveaway-glow { position: absolute; inset: -40% -10% auto auto; width: 60%; height: 180%; background: radial-gradient(closest-side, rgba(127, 140, 255, 0.22), transparent); pointer-events: none; }
-.giveaway-icon { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; flex-shrink: 0; color: #fff; background: linear-gradient(135deg, #8f99ff, #4b55d6); box-shadow: 0 6px 16px rgba(91, 102, 240, 0.35); }
-.giveaway-text { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; position: relative; }
-.giveaway-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; color: var(--accent-text); }
-.giveaway-text b { font-size: 19px; letter-spacing: -0.01em; }
-.giveaway-text .muted { font-size: 12.5px; }
-.giveaway-cta { position: relative; flex-shrink: 0; padding: 8px 12px; border-radius: 12px; font-size: 13px; font-weight: 700; background: var(--text); color: var(--bg); display: inline-flex; align-items: center; gap: 5px; }
-.giveaway-cta.joined { background: rgba(47, 209, 139, 0.14); color: var(--green); }
 .giveaway-sheet { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
 .giveaway-prize { font-size: 28px; letter-spacing: -0.02em; }
 .giveaway-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin-top: 6px; }
@@ -1149,3 +1138,71 @@ button.card:active { transform: scale(0.98); border-color: var(--border-strong);
 @media (prefers-reduced-motion: reduce) {
   .premium-sheen, .black-card { animation: none; }
 }
+
+/* ---------- Promo strip under the rate: giveaway and IX Black, self-scrolling ---------- */
+.strip-wrap { position: relative; }
+.strip {
+  display: flex; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; border-radius: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+.strip::-webkit-scrollbar { display: none; }
+.strip-slide {
+  position: relative; overflow: hidden; flex: 0 0 100%; scroll-snap-align: start; scroll-snap-stop: always;
+  display: flex; align-items: center; gap: 11px; height: 60px; padding: 0 10px 0 12px; border-radius: 16px; text-align: left;
+}
+.strip-text { position: relative; display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.strip-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip-title { font-size: 16px; font-weight: 700; letter-spacing: -0.005em; line-height: 1.2; white-space: nowrap; }
+.strip-sub { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip-cta {
+  position: relative; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; white-space: nowrap;
+}
+
+/* Giveaway: deep navy, violet waves in the corners, glowing gift tile. */
+.strip-gw {
+  color: #fff; border: 1px solid rgba(140, 150, 255, 0.28);
+  background:
+    radial-gradient(60% 120% at 100% 0%, rgba(120, 110, 255, 0.35), transparent 60%),
+    radial-gradient(70% 140% at 0% 100%, rgba(110, 90, 255, 0.45), transparent 60%),
+    linear-gradient(120deg, #11133a, #090b1f 55%, #0d1030);
+}
+.strip-wave {
+  position: absolute; left: -40px; bottom: -40px; width: 140px; height: 62px; border-radius: 50%;
+  background: linear-gradient(90deg, #6d5cff, #3c48e6); filter: blur(1px); opacity: 0.55; transform: rotate(-12deg);
+}
+.strip-gift {
+  position: relative; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; color: #fff;
+  background: linear-gradient(150deg, #a07bff, #4a55ff 75%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.08), 0 6px 18px rgba(90, 90, 255, 0.55);
+}
+.strip-gift::after {
+  content: ''; position: absolute; top: -7px; right: -9px; width: 12px; height: 12px;
+  background:
+    linear-gradient(#a8b0ff, #a8b0ff) 7px 0 / 2px 6px no-repeat,
+    linear-gradient(#a8b0ff, #a8b0ff) 0 9px / 6px 2px no-repeat;
+  transform: rotate(20deg); opacity: 0.85;
+}
+.strip-gw .strip-kicker { color: #b9c0ff; }
+.strip-gw .strip-sub { color: #a3a9cf; }
+.strip-usdt { background: linear-gradient(180deg, #ffffff, #8f9bff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.strip-gw .strip-cta { color: #0d1030; background: linear-gradient(180deg, #ffffff, #d9ddff); box-shadow: 0 0 18px rgba(130, 140, 255, 0.55), inset 0 -1px 0 rgba(0, 0, 0, 0.08); }
+.strip-gw .strip-cta.done { color: #7ff0bf; background: rgba(47, 209, 139, 0.14); box-shadow: none; }
+
+/* IX Black: the same black metal as the profile card. */
+.strip-ix {
+  color: #f2f3f5; --logo-fg: #f2f3f5; --logo-fold: #8d9099; border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.018) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 160% at 0% 0%, #3d4047 0%, #17181c 45%, #060607 100%);
+}
+.strip-ix-logo { position: relative; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12); }
+.strip-ix .strip-kicker { color: #a6a9b2; }
+.strip-ix .strip-title { letter-spacing: 0.04em; }
+.strip-ix .strip-sub { color: #b9bcc4; }
+.strip-cta.light { color: #0b0c0f; background: linear-gradient(180deg, #ffffff, #d4d6dc); }
+
+.strip-dots { display: flex; margin-top: 7px; justify-content: center; gap: 4px; pointer-events: none; }
+.strip-dots i { width: 4px; height: 4px; border-radius: 2px; background: var(--fill-4); transition: width 0.25s, background 0.25s; }
+.strip-dots i.on { width: 12px; background: var(--text-3); }
+@media (max-width: 360px) { .strip-title { font-size: 17px; } .strip-cta { padding: 0 10px; font-size: 12px; } }

@@ -22,29 +22,6 @@ const plural = (n: number, one: string, few: string, many: string) => {
   return m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many;
 };
 
-/** Home screen card: the current giveaway, or its results for a few days after the draw. */
-export function GiveawayBanner({ g, now, onOpen }: { g: GiveawayDto; now: number; onOpen: () => void }) {
-  const won = g.results.find((r) => r.you);
-  return (
-    <button className="card giveaway" onClick={() => { haptic(); onOpen(); }}>
-      <span className="giveaway-glow" aria-hidden />
-      <span className="giveaway-icon"><IconGift size={22} /></span>
-      <span className="giveaway-text">
-        <span className="giveaway-kicker">{g.status === 'drawn' ? 'Итоги розыгрыша' : 'Бесплатный розыгрыш'}</span>
-        <b>{shortUsdt(g.prizeMicro)} USDT</b>
-        <span className="muted">
-          {g.status === 'drawn'
-            ? won ? `Вы выиграли ${shortUsdt(won.prizeMicro)} USDT` : `${g.results.length} ${plural(g.results.length, 'победитель', 'победителя', 'победителей')}`
-            : `${g.winners} ${plural(g.winners, 'победитель', 'победителя', 'победителей')} · ${fmtLeft(g.endsAt - now)}`}
-        </span>
-      </span>
-      {g.status === 'active' && (
-        <span className={`giveaway-cta ${g.joined ? 'joined' : ''}`}>{g.joined ? <><IconCheck size={14} /> Вы участвуете</> : 'Участвовать'}</span>
-      )}
-    </button>
-  );
-}
-
 export function GiveawaySheet({ g, open, now, onClose, onChange }: { g: GiveawayDto; open: boolean; now: number; onClose: () => void; onChange: (g: GiveawayDto) => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

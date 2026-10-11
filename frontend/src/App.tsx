@@ -16,7 +16,9 @@ import { ProfileScreen } from './components/ProfileScreen';
 import { ServicesScreen } from './components/ServicesScreen';
 import { NotificationHost } from './components/NotificationHost';
 import { Promo } from './components/Promo';
-import { GiveawayBanner, GiveawaySheet } from './components/Giveaway';
+import { GiveawaySheet } from './components/Giveaway';
+import { PromoStrip } from './components/PromoStrip';
+import { PremiumSheet } from './components/premium/Premium';
 import { QrResultSheet } from './components/QrResultSheet';
 import { QrScannerOverlay } from './components/QrScanner';
 import { RateCard } from './components/RateCard';
@@ -48,6 +50,7 @@ export function App() {
   const [me, setMe] = useState<MeDto | null>(null);
   const [giveaway, setGiveaway] = useState<GiveawayDto | null>(null);
   const [giveawayOpen, setGiveawayOpen] = useState(false);
+  const [premiumOpen, setPremiumOpen] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -166,8 +169,8 @@ export function App() {
               <ConfirmBanner key={w.id} w={w} onOpen={() => setOpenWithdrawal(w.id)} />
             ))}
             <Actions onAction={onAction} />
-            {giveaway && <GiveawayBanner g={giveaway} now={clock} onOpen={() => setGiveawayOpen(true)} />}
             <RateCard rate={rate} error={rateError} onOpen={() => { haptic(); setRateOpen(true); }} />
+            <PromoStrip giveaway={giveaway} premiumUntil={me?.premium?.until ?? null} now={clock} onGiveaway={() => setGiveawayOpen(true)} onPremium={() => setPremiumOpen(true)} />
             <CryptoList coins={coins} onAll={() => setSoon('Все криптовалюты')} onCoin={(s) => setSoon(s)} />
             <Promo onOpen={() => setTransferOpen(true)} />
             {IS_DEMO && rate && (
@@ -199,6 +202,7 @@ export function App() {
       />
 
       <RateSheet rate={rate} open={rateOpen} onClose={() => setRateOpen(false)} />
+      <PremiumSheet open={premiumOpen} onClose={() => setPremiumOpen(false)} me={me} onBought={refreshAccount} onDeposit={() => setDepositOpen(true)} />
       {giveaway && <GiveawaySheet g={giveaway} open={giveawayOpen} now={clock} onClose={() => setGiveawayOpen(false)} onChange={setGiveaway} />}
       <WithdrawFlow
         open={withdrawOpen}
