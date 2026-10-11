@@ -4,7 +4,7 @@ import { ORDER_STATUS_LABEL, SERVICE_TITLE } from '../../../shared/services';
 import { SERVICE_LOGO } from './services/ServiceFlows';
 import { shortUsdt } from '../../../shared/transfers';
 import { fmtDateTime, fmtRub0 } from '../lib/format';
-import { IconAlert, IconArrowUpRight, IconCard, IconHistory, IconPlus } from './icons';
+import { IconAlert, IconArrowUpRight, IconCard, IconGift, IconHistory, IconPlus, LogoX } from './icons';
 import { CoinIcon } from './CoinIcon';
 import { DEPOSIT_STATUS_LABEL } from './deposit/DepositDetailSheet';
 import type { DepositDto } from '../../../shared/api';
@@ -89,6 +89,16 @@ export function HistoryScreen({ items, loading, onOpenWithdrawal, onOpenChecks, 
               return (
                 <Row key={`x${d.id}`} icon={<IconAlert size={17} />} title="Удержание" sub={d.reason}
                   amount={`−${shortUsdt(d.amountMicro)} USDT`} at={d.createdAt} />
+              );
+            }
+            if (h.type === 'bonus') {
+              const b = h.bonus;
+              const plus = b.amountMicro > 0;
+              const title = b.kind === 'premium_purchase' ? 'IX Black' : b.kind === 'premium_cashback' ? 'Кэшбэк IX Black' : 'Выигрыш в розыгрыше';
+              const sub = b.kind === 'premium_purchase' ? 'Оплата статуса' : b.kind === 'premium_cashback' ? '0.2% от оборота за месяц' : 'Приз зачислен на баланс';
+              return (
+                <Row key={`b${b.kind}${h.at}`} icon={b.kind === 'giveaway_prize' ? <IconGift size={18} /> : <LogoX size={18} />} iconClass={b.kind === 'giveaway_prize' ? 'in' : 'black'}
+                  title={title} sub={sub} amount={`${plus ? '+' : '−'}${shortUsdt(Math.abs(b.amountMicro))} USDT`} amountClass={plus ? 'up' : ''} at={h.at} />
               );
             }
             const c = h.check;

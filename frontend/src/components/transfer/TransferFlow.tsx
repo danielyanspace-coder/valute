@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { SuccessMark } from '../../lib/motion';
 import type { CheckDto, MeDto, PersonDto, TransferDto } from '../../../../shared/api';
 import { USDT_MICRO } from '../../../../shared/payout';
 import { MAX_COMMENT_LENGTH, normalizeUsername, parseUsdt, shortUsdt } from '../../../../shared/transfers';
@@ -10,6 +11,13 @@ import { IconCheck, IconChevronRight, IconCopy, IconUser } from '../icons';
 import { Sheet } from '../Sheet';
 import { Notice } from '../withdraw/WithdrawFlow';
 import { CheckCard } from './CheckCard';
+
+/** Copy with a light tap so the user feels it worked. */
+const copyAndTap = async (text: string) => {
+  const ok = await copyText(text);
+  if (ok) haptic();
+  return ok;
+};
 
 type Step = 'choose' | 'username' | 'sent' | 'check' | 'check-ready' | 'my-checks';
 
@@ -177,7 +185,7 @@ export function TransferFlow({ open, onClose, me, onChanged }: Props) {
     case 'sent':
       body = sent && (
         <div className="done">
-          <span className="done-icon"><IconCheck size={30} /></span>
+          <SuccessMark />
           <b>Отправлено {shortUsdt(sent.amountMicro)} USDT</b>
           <p className="muted">
             {sent.counterparty.firstName}
@@ -249,7 +257,7 @@ function CheckReady({ check, bot, onChanged }: { check: CheckDto; bot: string; o
     haptic();
     if (shareInline(`c_${check.code}`)) return;
     // Outside Telegram (or the demo): copy the link instead.
-    setCopied(await copyText(check.link));
+    setCopied(await copyAndTap(check.link));
     setDemoNote(IS_DEMO ? 'В Telegram откроется выбор чата, и чек отправится сообщением с кнопкой «Получить».' : null);
   };
 
@@ -280,7 +288,7 @@ function CheckReady({ check, bot, onChanged }: { check: CheckDto; bot: string; o
       {check.status === 'active' && (
         <>
           <button className="btn primary block" onClick={share}>Отправить в чат</button>
-          <button className="btn ghost block copy-btn" onClick={async () => setCopied(await copyText(check.link))}>
+          <button className="btn ghost block copy-btn" onClick={async () => setCopied(await copyAndTap(check.link))}>
             <IconCopy size={16} /> {copied ? 'Ссылка скопирована' : 'Скопировать ссылку'}
           </button>
           {demoNote && <Notice tone="info">{demoNote}</Notice>}
@@ -329,7 +337,7 @@ function BotHint({ bot }: { bot: string }) {
     <div className="bot-hint">
       <b>Быстрее через бота</b>
       <p>В любом чате напишите команду и сумму, затем выберите «Отправить чек». Получатель нажмёт «Получить».</p>
-      <button className="bot-command" onClick={async () => setCopied(await copyText(`@${bot} `))}>
+      <button className="bot-command" onClick={async () => setCopied(await copyAndTap(`@${bot} `))}>
         <span>@{bot} <i>10</i></span>
         <span className="muted small">{copied ? 'Скопировано' : 'Скопировать'}</span>
       </button>

@@ -531,3 +531,36 @@ body.ab-noscroll { overflow: hidden; }
   .wb-row { grid-template-columns: minmax(0, 1fr) auto; }
   .wb-addr { grid-column: 1 / -1; grid-row: 2; }
 }
+
+/* ---------- IX Black and giveaways ---------- */
+.ix-badge {
+  display: inline-flex; align-items: center; padding: 1px 7px; border-radius: 999px; font-style: normal;
+  font-size: 10.5px; font-weight: 800; letter-spacing: 0.03em; color: #f2f3f5;
+  background: linear-gradient(135deg, #3a3c42, #0b0c0e); border: 1px solid rgba(255, 255, 255, 0.22);
+}
+.ab-card.ix, .adm-row.ix { box-shadow: inset 3px 0 0 #e9eaee; }
+.ab-card-top .ix-badge { margin-right: auto; margin-left: 8px; }
+.adm-row-top .ix-badge { margin-left: 2px; }
+.gw { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; align-items: start; }
+@media (max-width: 860px) { .gw { grid-template-columns: 1fr; } }
+.gw-form { display: flex; flex-direction: column; gap: 10px; }
+.gw-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gw-hint { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.45; }
+.gw-list { display: flex; flex-direction: column; gap: 12px; }
+.gw-item b { font-size: 15px; }
+.gw-status { font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--fill-2); color: var(--muted); }
+.gw-status.active { background: rgba(47, 209, 139, 0.14); color: var(--green); }
+.gw-nums { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+@media (max-width: 520px) { .gw-nums { grid-template-columns: 1fr 1fr; } }
+.gw-nums > div { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; border-radius: 10px; background: var(--fill-1); }
+.gw-nums span { font-size: 11px; color: var(--muted); }
+.gw-nums b { font-size: 13.5px; }
+.gw-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.gw-winners { display: flex; flex-direction: column; border-top: 1px solid var(--border); margin-top: 10px; max-height: 260px; overflow: auto; }
+.gw-winner { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--border); font-size: 13px; text-align: left; width: 100%; }
+.gw-winner:last-child { border-bottom: 0; }
+.gw-winner b { color: var(--green); white-space: nowrap; }
+.gw-until { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.gw-empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+.gw-premium { grid-column: 1 / -1; }
+.gw-premium-sum { font-size: 12px; color: var(--muted); }

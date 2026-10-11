@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { DepositDto, HistoryItem, MeDto } from '../../shared/api';
+import type { DepositDto, GiveawayDto, HistoryItem, MeDto } from '../../shared/api';
 import { USDT_MICRO } from '../../shared/payout';
 import { Actions, type ActionId } from './components/Actions';
 import { BalanceCard } from './components/BalanceCard';
@@ -16,6 +16,7 @@ import { ProfileScreen } from './components/ProfileScreen';
 import { ServicesScreen } from './components/ServicesScreen';
 import { NotificationHost } from './components/NotificationHost';
 import { Promo } from './components/Promo';
+import { GiveawayBanner, GiveawaySheet } from './components/Giveaway';
 import { QrResultSheet } from './components/QrResultSheet';
 import { QrScannerOverlay } from './components/QrScanner';
 import { RateCard } from './components/RateCard';
@@ -45,6 +46,9 @@ export function App() {
   const [rateError, setRateError] = useState(false);
   const [coins, setCoins] = useState<MarketCoin[]>([]);
   const [me, setMe] = useState<MeDto | null>(null);
+  const [giveaway, setGiveaway] = useState<GiveawayDto | null>(null);
+  const [giveawayOpen, setGiveawayOpen] = useState(false);
+  const [clock, setClock] = useState(() => Date.now());
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(true);
   const [hidden, setHidden] = useState(() => readFlag('hideBalance'));
@@ -79,6 +83,8 @@ export function App() {
   const refreshAccount = useCallback(() => {
     api.me().then(setMe, () => {});
     api.history().then((r) => setHistory(r.items), () => {}).finally(() => setHistoryLoading(false));
+    api.giveaway().then((r) => setGiveaway(r.giveaway), () => {});
+    setClock(Date.now());
   }, []);
   usePolling(refreshAccount, ACCOUNT_REFRESH_MS);
 
@@ -145,6 +151,7 @@ export function App() {
           onProfile={() => setTab('profile')}
           theme={theme}
           onToggleTheme={() => { haptic(); toggleTheme(); }}
+          premium={!!me?.premium}
         />
 
         {tab === 'home' && (
@@ -159,6 +166,7 @@ export function App() {
               <ConfirmBanner key={w.id} w={w} onOpen={() => setOpenWithdrawal(w.id)} />
             ))}
             <Actions onAction={onAction} />
+            {giveaway && <GiveawayBanner g={giveaway} now={clock} onOpen={() => setGiveawayOpen(true)} />}
             <RateCard rate={rate} error={rateError} onOpen={() => { haptic(); setRateOpen(true); }} />
             <CryptoList coins={coins} onAll={() => setSoon('Все криптовалюты')} onCoin={(s) => setSoon(s)} />
             <Promo onOpen={() => setTransferOpen(true)} />
@@ -173,7 +181,7 @@ export function App() {
 
         {tab === 'services' && <ServicesScreen onDeposit={() => setDepositOpen(true)} onWithdraw={() => setWithdrawOpen(true)} onService={setService} />}
 
-        {tab === 'profile' && <ProfileScreen me={me} onUnavailableSupport={() => setSoon('Поддержка')} />}
+        {tab === 'profile' && <ProfileScreen me={me} onUnavailableSupport={() => setSoon('Поддержка')} onRefresh={refreshAccount} onDeposit={() => setDepositOpen(true)} />}
 
         {tab === 'history' && (
           <HistoryScreen items={history} loading={historyLoading} onOpenWithdrawal={setOpenWithdrawal} onOpenChecks={() => setTransferOpen(true)} onOpenOrder={setOpenOrder} onOpenDeposit={setOpenDeposit} onOpenUsdtPayout={openU} />
@@ -191,6 +199,7 @@ export function App() {
       />
 
       <RateSheet rate={rate} open={rateOpen} onClose={() => setRateOpen(false)} />
+      {giveaway && <GiveawaySheet g={giveaway} open={giveawayOpen} now={clock} onClose={() => setGiveawayOpen(false)} onChange={setGiveaway} />}
       <WithdrawFlow
         open={withdrawOpen}
         onClose={() => setWithdrawOpen(false)}

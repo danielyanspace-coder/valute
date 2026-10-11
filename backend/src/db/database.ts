@@ -434,6 +434,60 @@ const MIGRATIONS: string[] = [
   ALTER TABLE withdrawals ADD COLUMN user_active_at INTEGER;
   ALTER TABLE deal_reminders ADD COLUMN reacted_at INTEGER;
   `,
+  // 10: IX Black status (priority queue, monthly cashback) and free giveaways.
+  `
+  CREATE TABLE premium_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    request_id TEXT NOT NULL,
+    plan TEXT NOT NULL,
+    price_micro INTEGER NOT NULL,
+    starts_at INTEGER NOT NULL,
+    ends_at INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE (user_id, request_id)
+  );
+  CREATE INDEX premium_user ON premium_subscriptions(user_id, ends_at);
+  CREATE TABLE premium_cashback (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    month TEXT NOT NULL,
+    turnover_micro INTEGER NOT NULL,
+    amount_micro INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, month)
+  );
+  CREATE TABLE premium_reminders (
+    subscription_id INTEGER NOT NULL REFERENCES premium_subscriptions(id),
+    kind TEXT NOT NULL,
+    PRIMARY KEY (subscription_id, kind)
+  );
+  ALTER TABLE withdrawals ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE usdt_payouts ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE service_orders ADD COLUMN priority INTEGER NOT NULL DEFAULT 0;
+
+  CREATE TABLE giveaways (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    prize_micro INTEGER NOT NULL,
+    winners INTEGER NOT NULL,
+    ends_at INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('active', 'drawn', 'cancelled')),
+    created_at INTEGER NOT NULL,
+    drawn_at INTEGER
+  );
+  CREATE TABLE giveaway_entries (
+    giveaway_id INTEGER NOT NULL REFERENCES giveaways(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (giveaway_id, user_id)
+  );
+  CREATE TABLE giveaway_winners (
+    giveaway_id INTEGER NOT NULL REFERENCES giveaways(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    prize_micro INTEGER NOT NULL,
+    PRIMARY KEY (giveaway_id, user_id)
+  );
+  `,
 ];
 
 export type Db = DatabaseSync;

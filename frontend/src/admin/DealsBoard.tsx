@@ -163,9 +163,10 @@ export function DealCard({ d, now, busy, onOpen, onAction, onContact }: {
     </div>
   );
   return (
-    <div className={`ab-card s-${d.section}`} onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen()}>
+    <div className={`ab-card s-${d.section} ${d.priority ? 'ix' : ''}`} onClick={onOpen} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpen()}>
       <div className="ab-card-top">
         <b className="ab-no">№{d.id}</b>
+        {d.priority && <i className="ix-badge" title="IX Black: заявка вне очереди">IX Black</i>}
         <span className="ab-age">{fmtAgo(d.createdAt, now)}</span>
       </div>
       <div className="ab-amount">{fmtRub0(d.amountRub)}</div>

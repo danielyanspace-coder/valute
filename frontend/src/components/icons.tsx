@@ -98,3 +98,8 @@ export const IconChat = (p: P) => (<svg {...base(p)}><path d="M4 5.5h16v11H9l-5 
 export const IconCopy = (p: P) => (
   <svg {...base(p)}><rect x="8.5" y="8.5" width="12" height="12" rx="2.5" /><path d="M15.5 8.5V6A2.5 2.5 0 0 0 13 3.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5" /></svg>
 );
+export const IconGift = (p: P) => (
+  <svg {...base(p)}><path d="M4 11h16v9H4zM3 7.5h18V11H3zM12 7.5V20" /><path d="M12 7.5C10.5 4 7 4.2 7.2 6.2 7.4 7.6 12 7.5 12 7.5ZM12 7.5c1.5-3.5 5-3.3 4.8-1.3-.2 1.4-4.8 1.3-4.8 1.3Z" /></svg>
+);
+export const IconPercent = (p: P) => (<svg {...base(p)}><path d="M19 5 5 19" /><circle cx="7" cy="7" r="2.3" /><circle cx="17" cy="17" r="2.3" /></svg>);
+export const IconBadge = (p: P) => (<svg {...base(p)}><path d="M12 2.8 19.5 6v5.5c0 4.6-3.2 8.3-7.5 9.7-4.3-1.4-7.5-5.1-7.5-9.7V6Z" /><path d="m8.8 12 2.3 2.3 4.3-4.6" /></svg>);

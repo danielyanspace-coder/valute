@@ -35,6 +35,9 @@ npm run dev                   # backend :8080, frontend :5173 (проксиру�
 | `/api/admin/deposits` · `/api/admin/deposit-pool` | пополнения на проверке и пул адресов (добавить, выключить, удалить), `Authorization: Bearer $ADMIN_TOKEN` |
 | `POST /api/usdt-withdrawals` · `GET /api/usdt-withdrawals/:id` | вывод USDT TRC-20 на внешний кошелёк: заявка, оператор отправляет вручную |
 | `/api/admin/usdt-withdrawals` · `/:id/sent` · `/:id/reject` | заявки на вывод USDT: список, «Отправил» с хэшем (проверяется в блокчейне), отклонить |
+| `GET /api/premium` · `POST /api/premium/buy` | статус IX Black: срок, планы, оборот месяца, история кэшбэка; покупка с баланса |
+| `GET /api/giveaways/current` · `POST /api/giveaways/:id/join` | бесплатный розыгрыш на главной: участие в один тап |
+| `/api/admin/premium` · `/api/admin/giveaways` · `/:id/draw` · `/:id/cancel` | активные IX Black и выручка; розыгрыши: создать, провести, отменить |
 | `GET /api/notifications` | уведомления для окон в приложении |
 | `/admin` | админка: сделки, архив, пользователи, теневые заморозки, журнал, рассылки, МК, пополнения; пароль `ADMIN_TOKEN` |
 | `/api/admin/deals/*` · `/users/*` · `/obligations` · `/journal` · `/broadcasts` | API админки, `Authorization: Bearer $ADMIN_TOKEN` |

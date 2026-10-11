@@ -26,6 +26,8 @@ import { TransferService } from './transfers/transferService.js';
 import { TelegramApi, WalletBot } from './bot/bot.js';
 import { NoFineLookup } from './orders/fineLookup.js';
 import { OrderService } from './orders/orderService.js';
+import { PremiumService } from './premium/premiumService.js';
+import { GiveawayService } from './giveaways/giveawayService.js';
 
 /** Deal reminders go every 2 minutes; a 5-second tick keeps them on time. */
 const DEAL_TICK_MS = 5_000;
@@ -82,6 +84,9 @@ const usdtPayouts = new UsdtPayoutService(db, ledger, users, notifications, aml,
   minMicro: Math.round(config.usdtWithdrawMinUsdt * USDT_MICRO),
 }, audit);
 
+const premium = new PremiumService(db, ledger, users, notifications, audit);
+const giveaways = new GiveawayService(db, ledger, users, notifications, audit);
+
 const app = buildApp({
   rates,
   aml,
@@ -102,6 +107,8 @@ const app = buildApp({
   deposits,
   usdtPayouts,
   stats: new StatsService(db),
+  premium,
+  giveaways,
   onAdminAccess: (() => {
     const guard = new AdminGuard(db, (text) => {
       app.log.warn({ alert: text }, 'admin access alert');
@@ -126,6 +133,17 @@ const dealLoop = async () => {
 };
 void dealLoop();
 void broadcasts.run(); // resume a broadcast interrupted by a restart
+
+// IX Black: last month's cashback on the 1st and expiry reminders. Hourly is plenty.
+const premiumTick = () => {
+  try {
+    premium.tick();
+  } catch (err) {
+    app.log.error({ err }, 'premium tick failed');
+  }
+};
+premiumTick();
+setInterval(premiumTick, 3_600_000).unref();
 
 // Deposit watcher: one pass at a time, never overlapping. Addresses are added in the admin panel.
 {

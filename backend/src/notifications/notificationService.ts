@@ -60,6 +60,11 @@ export class NotificationService {
     if (this.bot && r.botText) this.bot.send(user.telegram_id, r.botText, { buttons: r.buttons }).catch(this.onError);
   }
 
+  /** Bot message only, no in-app modal. */
+  botOnly(user: { telegram_id: number }, text: string, buttons?: InlineButton[][]): void {
+    if (this.bot) this.bot.send(user.telegram_id, text, { buttons }).catch(this.onError);
+  }
+
   unseen(userId: number): StoredNotification[] {
     return this.db
       .prepare(

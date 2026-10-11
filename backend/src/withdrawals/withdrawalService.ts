@@ -45,6 +45,7 @@ import {
 import { findBank } from '../../../shared/sbpBanks.js';
 import { shortUsdt } from '../../../shared/transfers.js';
 import type { AuditLog } from '../audit/auditLog.js';
+import { isPremium } from '../premium/premiumService.js';
 import { transaction, type Db } from '../db/database.js';
 import type { Ledger } from '../ledger/ledger.js';
 import type { InlineButton, Messenger } from '../notifications/messenger.js';
@@ -82,6 +83,7 @@ export interface WithdrawalRow {
   balance_before_micro: number;
   status: DealStatus;
   created_at: number;
+  priority: number;
   finished_at: number | null;
   client_ip: string | null;
   user_agent: string | null;
@@ -220,6 +222,7 @@ export class WithdrawalService {
           availableMicro, this.now(), ctx.ip ?? null, ctx.userAgent?.slice(0, 300) ?? null, req.platform?.slice(0, 40) ?? null,
         );
       const id = Number(lastInsertRowid);
+      if (isPremium(this.db, user.id, this.now())) this.db.prepare('UPDATE withdrawals SET priority = 1 WHERE id = ?').run(id);
       this.ledger.post([
         { userId: user.id, bucket: 'available', amountMicro: -amountMicro, kind: 'withdrawal_freeze', refType: 'withdrawal', refId: id },
         { userId: user.id, bucket: 'frozen', amountMicro, kind: 'withdrawal_freeze', refType: 'withdrawal', refId: id },
@@ -612,7 +615,7 @@ export class WithdrawalService {
 
   board(): AdminBoardDto {
     const rows = this.db
-      .prepare(`SELECT * FROM withdrawals WHERE status IN (${ACTIVE_STATUSES.map(() => '?').join(',')}) ORDER BY created_at, id`)
+      .prepare(`SELECT * FROM withdrawals WHERE status IN (${ACTIVE_STATUSES.map(() => '?').join(',')}) ORDER BY priority DESC, created_at, id`)
       .all(...ACTIVE_STATUSES) as unknown as WithdrawalRow[];
     const items = rows.map((w) => this.listItem(w));
     const counts = Object.fromEntries(BOARD_SECTIONS.map((s) => [s.id, 0])) as Record<BoardSection, number>;
@@ -841,6 +844,7 @@ export class WithdrawalService {
     const entered = w.entered_at;
     return {
       id: w.id,
+      priority: !!w.priority,
       status: w.status,
       section: boardSection({ status: w.status, requisiteOffAt: w.requisite_off_at }),
       method: w.method,

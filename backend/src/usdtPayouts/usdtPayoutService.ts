@@ -3,6 +3,7 @@ import { parseUsdt, shortUsdt } from '../../../shared/transfers.js';
 import { validateUsdtPayout, type UsdtPayoutStatus } from '../../../shared/usdtPayout.js';
 import type { AmlService } from '../aml/amlService.js';
 import type { AuditLog } from '../audit/auditLog.js';
+import { isPremium } from '../premium/premiumService.js';
 import { transaction, type Db } from '../db/database.js';
 import type { TronChain } from '../deposits/tronClient.js';
 import { isTronAddress } from '../deposits/tronHd.js';
@@ -29,6 +30,7 @@ export interface UsdtPayoutRow {
   created_at: number;
   finished_at: number | null;
   client_ip: string | null;
+  priority: number;
 }
 
 export interface UsdtPayoutOptions {
@@ -91,6 +93,7 @@ export class UsdtPayoutService {
         )
         .run(user.id, req.requestId, address, amount, this.opts.feeMicro, aml.decision, JSON.stringify(aml.signals), availableMicro, this.now(), ctx.ip ?? null);
       const id = Number(res.lastInsertRowid);
+      if (isPremium(this.db, user.id, this.now())) this.db.prepare('UPDATE usdt_payouts SET priority = 1 WHERE id = ?').run(id);
       this.ledger.post([
         { userId: user.id, bucket: 'available', amountMicro: -total, kind: 'usdt_payout_freeze', refType: 'usdt_payout', refId: id },
         { userId: user.id, bucket: 'frozen', amountMicro: total, kind: 'usdt_payout_freeze', refType: 'usdt_payout', refId: id },
@@ -146,7 +149,7 @@ export class UsdtPayoutService {
     const rows = (
       status === 'all'
         ? this.db.prepare('SELECT * FROM usdt_payouts ORDER BY id DESC LIMIT 200').all()
-        : this.db.prepare(`SELECT * FROM usdt_payouts WHERE status = ? ORDER BY id ${status === 'new' ? 'ASC' : 'DESC'} LIMIT 200`).all(status)
+        : this.db.prepare(`SELECT * FROM usdt_payouts WHERE status = ? ORDER BY ${status === 'new' ? 'priority DESC, id ASC' : 'id DESC'} LIMIT 200`).all(status)
     ) as unknown as UsdtPayoutRow[];
     return rows.map((p) => this.toAdminDto(p));
   }
@@ -165,6 +168,7 @@ export class UsdtPayoutService {
     return {
       ...this.toUserDto(p),
       user: { id: p.user_id, username: u?.username ?? null, firstName: u?.first_name ?? `#${p.user_id}`, telegramId: u?.telegram_id ?? 0 },
+      priority: !!p.priority,
       amlDecision: (p.aml_decision as AdminUsdtPayoutDto['amlDecision']) ?? null,
       amlSignals: signals,
       adminNote: p.admin_note,

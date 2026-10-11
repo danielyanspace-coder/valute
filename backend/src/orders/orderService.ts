@@ -30,6 +30,7 @@ import {
   type OrderStatus,
   type ServiceKind,
 } from '../../../shared/services.js';
+import { isPremium } from '../premium/premiumService.js';
 import { transaction, type Db } from '../db/database.js';
 import type { Ledger } from '../ledger/ledger.js';
 import type { NotificationService } from '../notifications/notificationService.js';
@@ -58,6 +59,7 @@ export interface OrderRow {
   reject_reason: string | null;
   balance_before_micro: number;
   created_at: number;
+  priority: number;
   updated_at: number;
   finished_at: number | null;
   client_ip: string | null;
@@ -176,6 +178,7 @@ export class OrderService {
           fields.steam_login ?? null, availableMicro, now, now, ctx.ip ?? null, ctx.platform?.slice(0, 40) ?? null,
         );
       const id = Number(lastInsertRowid);
+      if (isPremium(this.db, user.id, now)) this.db.prepare('UPDATE service_orders SET priority = 1 WHERE id = ?').run(id);
       this.ledger.post([
         { userId: user.id, bucket: 'available', amountMicro: -amountMicro, kind: 'order_freeze', refType: 'order', refId: id },
         { userId: user.id, bucket: 'frozen', amountMicro, kind: 'order_freeze', refType: 'order', refId: id },
@@ -258,7 +261,7 @@ export class OrderService {
     const rows = (
       status === 'all'
         ? this.db.prepare('SELECT * FROM service_orders ORDER BY id DESC LIMIT ?').all(limit)
-        : this.db.prepare('SELECT * FROM service_orders WHERE status = ? ORDER BY id DESC LIMIT ?').all(status, limit)
+        : this.db.prepare(`SELECT * FROM service_orders WHERE status = ? ORDER BY ${status === 'pending' || status === 'clarify' ? 'priority DESC, id ASC' : 'id DESC'} LIMIT ?`).all(status, limit)
     ) as unknown as OrderRow[];
     return rows.map((o) => this.listItem(o));
   }
@@ -361,6 +364,7 @@ export class OrderService {
     const u = this.users.get(o.user_id)!;
     return {
       id: o.id,
+      priority: !!o.priority,
       kind: o.kind,
       status: o.status,
       amountRub: o.amount_rub,

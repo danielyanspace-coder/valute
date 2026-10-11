@@ -4,14 +4,19 @@ import { fmtRub0 } from '../lib/format';
 import { haptic, openTelegramChat } from '../lib/telegram';
 import { IconChat, IconChevronRight, IconHelp } from './icons';
 import { Sheet } from './Sheet';
+import { PremiumCard, PremiumChip, PremiumSheet } from './premium/Premium';
 
 interface Props {
   me: MeDto | null;
   onUnavailableSupport: () => void;
+  onRefresh: () => void;
+  onDeposit: () => void;
 }
 
-export function ProfileScreen({ me, onUnavailableSupport }: Props) {
+export function ProfileScreen({ me, onUnavailableSupport, onRefresh, onDeposit }: Props) {
   const [faqOpen, setFaqOpen] = useState(false);
+  const [premiumOpen, setPremiumOpen] = useState(false);
+  const premiumUntil = me?.premium?.until ?? null;
   const u = me?.user;
   const name = u ? [u.firstName, u.lastName].filter(Boolean).join(' ') : '';
   const since = me ? new Date(me.stats.memberSince).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
@@ -24,6 +29,7 @@ export function ProfileScreen({ me, onUnavailableSupport }: Props) {
           <i className="online-dot" />
         </div>
         <b className="profile-name">{name || ' '}</b>
+        {premiumUntil && <PremiumChip />}
         <span className="profile-username">{u?.username ? `@${u.username}` : 'username скрыт'}</span>
         {since && <span className="profile-since">В Crypto IX с {since}</span>}
       </div>
@@ -39,19 +45,21 @@ export function ProfileScreen({ me, onUnavailableSupport }: Props) {
         </div>
       </div>
 
+      <PremiumCard until={premiumUntil} onOpen={() => setPremiumOpen(true)} />
+
       <div className="card profile-menu">
         <button
           className="menu-row"
           onClick={() => {
             haptic();
-            if (me?.supportUsername) openTelegramChat(me.supportUsername);
+            if (me?.supportUsername) openTelegramChat(me.supportUsername, premiumUntil ? `IX Black · ID ${me.user.id}: ` : undefined);
             else onUnavailableSupport();
           }}
         >
           <span className="menu-icon support"><IconChat size={18} /></span>
           <span className="menu-text">
             <b>Чат с поддержкой</b>
-            <span className="muted">Ответим в Telegram</span>
+            <span className="muted">{premiumUntil ? 'Приоритетная линия IX Black' : 'Ответим в Telegram'}</span>
           </span>
           <IconChevronRight size={16} className="muted" />
         </button>
@@ -65,6 +73,7 @@ export function ProfileScreen({ me, onUnavailableSupport }: Props) {
         </button>
       </div>
 
+      <PremiumSheet open={premiumOpen} onClose={() => setPremiumOpen(false)} me={me} onBought={onRefresh} onDeposit={onDeposit} />
       <FaqSheet open={faqOpen} onClose={() => setFaqOpen(false)} botUsername={me?.botUsername ?? 'bot'} />
     </section>
   );

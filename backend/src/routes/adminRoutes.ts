@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { AdminUserListItem, AdminUserPageDto, ArchiveQuery, BroadcastRequest, CreateObligationRequest, JournalQuery } from '../../../shared/api.js';
+import type { CreateGiveawayRequest, AdminUserListItem, AdminUserPageDto, ArchiveQuery, BroadcastRequest, CreateObligationRequest, JournalQuery } from '../../../shared/api.js';
 import { USDT_MICRO } from '../../../shared/payout.js';
 import type { AmlService } from '../aml/amlService.js';
 import type { Chain } from '../aml/types.js';
@@ -13,6 +13,8 @@ import type { OrderStatus } from '../../../shared/services.js';
 import type { DepositService } from '../deposits/depositService.js';
 import type { UsdtPayoutService } from '../usdtPayouts/usdtPayoutService.js';
 import type { StatsService } from '../stats/statsService.js';
+import type { PremiumService } from '../premium/premiumService.js';
+import type { GiveawayService } from '../giveaways/giveawayService.js';
 import { AppError, type WithdrawalService } from '../withdrawals/withdrawalService.js';
 
 const CHAINS: Chain[] = ['TRON', 'BSC', 'ETH', 'TON'];
@@ -32,6 +34,8 @@ export interface AdminRouteDeps {
   obligations: ObligationService;
   broadcasts: BroadcastService;
   supportUsername: string;
+  premium: PremiumService;
+  giveaways: GiveawayService;
 }
 
 type Body = Record<string, unknown>;
@@ -181,6 +185,12 @@ export function adminRoutes(app: FastifyInstance, deps: AdminRouteDeps) {
   app.get('/api/admin/stats', async () => deps.stats.get());
 
   // USDT TRC-20 withdrawals sent by hand.
+  app.get('/api/admin/premium', async () => deps.premium.adminSummary());
+  app.get('/api/admin/giveaways', async () => ({ items: deps.giveaways.list() }));
+  app.post<{ Body: CreateGiveawayRequest }>('/api/admin/giveaways', async (req) => deps.giveaways.create(req.body ?? ({} as CreateGiveawayRequest)));
+  app.post<{ Params: { id: string } }>('/api/admin/giveaways/:id/draw', async (req) => deps.giveaways.draw(Number(req.params.id)));
+  app.post<{ Params: { id: string } }>('/api/admin/giveaways/:id/cancel', async (req) => deps.giveaways.cancel(Number(req.params.id)));
+
   app.get<{ Querystring: { status?: string } }>('/api/admin/usdt-withdrawals', async (req) => {
     const s = (['new', 'sent', 'rejected', 'all'] as const).find((x) => x === req.query.status) ?? 'new';
     return { items: deps.usdtPayouts.adminList(s), counts: deps.usdtPayouts.counts() };

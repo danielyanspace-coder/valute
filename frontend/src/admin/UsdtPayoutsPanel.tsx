@@ -77,9 +77,10 @@ export function UsdtPayoutsPanel({ api, onOpenUser }: { api: AdminApi; onOpenUse
         <section className="adm-list">
           {items.length === 0 && <div className="adm-empty">{filter === 'new' ? 'Новых заявок нет' : 'Заявок нет'}</div>}
           {items.map((p) => (
-            <button key={p.id} className={`adm-row ${selected === p.id ? 'active' : ''}`} onClick={() => setSelected(p.id)}>
+            <button key={p.id} className={`adm-row ${selected === p.id ? 'active' : ''} ${p.priority ? 'ix' : ''}`} onClick={() => setSelected(p.id)}>
               <div className="adm-row-top">
                 <span className="adm-row-id">В-{p.id}</span>
+                {p.priority && <i className="ix-badge" title="IX Black: заявка вне очереди">IX Black</i>}
                 <Chip status={p.status} />
                 <span className="adm-row-time">{fmtAgo(p.createdAt)}</span>
               </div>

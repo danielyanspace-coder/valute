@@ -4,8 +4,10 @@ import { api } from '../lib/backend';
 import { hapticNotify, openTelegramChat } from '../lib/telegram';
 import { usePolling } from '../lib/useInterval';
 import { shortUsdt } from '../../../shared/transfers';
-import { IconAlert, IconCheck, IconPlus } from './icons';
+import { IconAlert, IconPlus } from './icons';
 import { Sheet } from './Sheet';
+import { CoinDrop, Confetti, SuccessMark } from '../lib/motion';
+import { IconGift, LogoX } from './icons';
 
 interface Props {
   supportUsername: string;
@@ -29,10 +31,11 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
     // Show the most important one; the rest are reflected in balances and history.
     const order = [
       'support_lock', 'deal_reminder', 'order_clarify', 'deal_cancelled', 'deal_corrected', 'obligation_repaid', 'order_rejected',
-      'usdt_payout_rejected', 'order_paid', 'usdt_payout_sent', 'deposit_credited', 'transfer_received', 'check_claimed', 'deal_completed',
+      'usdt_payout_rejected', 'giveaway_won', 'order_paid', 'usdt_payout_sent', 'deposit_credited', 'premium_cashback', 'transfer_received',
+      'check_claimed', 'deal_completed',
     ];
     const top = [...items].sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type))[0];
-    hapticNotify(['deal_completed', 'transfer_received', 'check_claimed', 'deposit_credited', 'usdt_payout_sent'].includes(top.type) ? 'success' : 'warning');
+    hapticNotify(['deal_completed', 'transfer_received', 'check_claimed', 'deposit_credited', 'usdt_payout_sent', 'giveaway_won', 'premium_cashback'].includes(top.type) ? 'success' : 'warning');
     // support_lock: the blocking screen is driven by /api/me (refreshed above), nothing to show here.
     if (top.type === 'support_lock') return;
     // Service orders: open the order itself, it shows the status, the question or the reason.
@@ -70,7 +73,7 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
     return (
       <Sheet open onClose={close} title="">
         <div className="modal-center">
-          <span className="modal-icon ok"><IconPlus size={26} /></span>
+          <CoinDrop />
           <b>+{shortUsdt(modal.deposit.amountMicro)} USDT</b>
           <p className="muted">Пополнение через TRON (TRC-20) зачислено на баланс.</p>
           <div className="sheet-actions"><button className="btn primary" onClick={close}>Отлично</button></div>
@@ -102,10 +105,37 @@ export function NotificationHost({ supportUsername, onOpenWithdrawal, onAnything
     return (
       <Sheet open onClose={close} title="">
         <div className="modal-center">
-          <span className="modal-icon ok"><IconCheck size={26} /></span>
+          <SuccessMark />
           <b>Чек активирован</b>
           <p className="muted">{by} получил {shortUsdt(c.amountMicro)} USDT по вашему чеку.</p>
           <div className="sheet-actions"><button className="btn primary" onClick={close}>Хорошо</button></div>
+        </div>
+      </Sheet>
+    );
+  }
+
+  if (modal.type === 'giveaway_won') {
+    return (
+      <Sheet open onClose={close} title="">
+        <Confetti fire={modal.id} />
+        <div className="modal-center">
+          <span className="modal-icon gift"><IconGift size={26} /></span>
+          <b>Вы выиграли +{shortUsdt(modal.amountMicro ?? 0)} USDT</b>
+          <p className="muted">Поздравляем! Приз розыгрыша уже на балансе.</p>
+          <div className="sheet-actions"><button className="btn primary" onClick={close}>Отлично</button></div>
+        </div>
+      </Sheet>
+    );
+  }
+
+  if (modal.type === 'premium_cashback') {
+    return (
+      <Sheet open onClose={close} title="">
+        <div className="modal-center">
+          <span className="modal-icon black"><LogoX size={26} /></span>
+          <b>Кэшбэк +{shortUsdt(modal.amountMicro ?? 0)} USDT</b>
+          <p className="muted">0.2% от оборота за прошлый месяц по статусу IX Black зачислены на баланс.</p>
+          <div className="sheet-actions"><button className="btn primary" onClick={close}>Отлично</button></div>
         </div>
       </Sheet>
     );

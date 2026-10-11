@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { SuccessMark } from '../../lib/motion';
 import type { MeDto, UsdtPayoutDto, WithdrawalDto } from '../../../../shared/api';
 import { parseUsdt, shortUsdt } from '../../../../shared/transfers';
 import { maxUsdtPayoutMicro, validateUsdtPayout } from '../../../../shared/usdtPayout';
@@ -295,7 +296,7 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
     case 'crypto-done':
       body = usdtCreated && (
         <div className="done">
-          <span className="done-icon"><IconCheck size={30} /></span>
+          <SuccessMark />
           <b>Заявка принята</b>
           <p className="muted">
             {shortUsdt(usdtCreated.amountMicro)} USDT на {usdtCreated.address.slice(0, 6)}…{usdtCreated.address.slice(-6)}. Отправим вручную и пришлём
@@ -462,7 +463,7 @@ export function WithdrawFlow({ open, onClose, me, rate, onCreated, onOpenWithdra
     case 'done':
       body = created && (
         <div className="done">
-          <span className="done-icon"><IconCheck size={30} /></span>
+          <SuccessMark />
           <b>Заявка принята</b>
           <p className="muted">
             {fmtRub0(created.amountRub)} на {created.destination}. Мы пришлём уведомление, когда деньги начнут путь.

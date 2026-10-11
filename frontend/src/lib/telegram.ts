@@ -68,7 +68,7 @@ export function setTelegramColors(bg: string): void {
   if (tg.isVersionAtLeast('7.10')) tg.setBottomBarColor?.(bg);
 }
 
-export function haptic(style: 'light' | 'medium' = 'light'): void {
+export function haptic(style: 'light' | 'medium' | 'heavy' = 'light'): void {
   if (tg?.isVersionAtLeast('6.1')) tg.HapticFeedback.impactOccurred(style);
 }
 
@@ -81,8 +81,8 @@ export function canUseNativeQr(): boolean {
 }
 
 /** Opens a Telegram chat (support) inside Telegram, or in a new tab elsewhere. */
-export function openTelegramChat(username: string): void {
-  const url = `https://t.me/${username}`;
+export function openTelegramChat(username: string, text?: string): void {
+  const url = `https://t.me/${username}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
   if (tg?.isVersionAtLeast('6.1')) tg.openTelegramLink(url);
   else window.open(url, '_blank', 'noopener');
 }

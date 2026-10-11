@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { SuccessMark } from '../../lib/motion';
 import type { FineLookupDto, MeDto, ServiceOrderDto, ServicesConfigDto } from '../../../../shared/api';
 import { MIN_PAYOUT_RUB } from '../../../../shared/payout';
 import {
@@ -160,7 +161,7 @@ export function ServiceFlow({ kind, onClose, me, onCreated, onOpenOrder }: FlowP
   if (step === 'done' && created) {
     body = (
       <div className="done">
-        <span className="done-icon"><IconCheck size={30} /></span>
+        <SuccessMark />
         <b>Заявка #{created.id} принята</b>
         <p className="muted">
           {fmtMicro(created.amountMicro)} заморожены. Оператор проведёт оплату и пришлёт уведомление, обычно в течение часа.

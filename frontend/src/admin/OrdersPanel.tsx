@@ -57,9 +57,10 @@ export function OrdersPanel({ api, top }: { api: AdminApi; top: ReactNode }) {
         <section className="adm-list">
           {items.length === 0 && <div className="adm-empty">Заявок нет</div>}
           {items.map((o) => (
-            <button key={o.id} className={`adm-row ${selected === o.id ? 'active' : ''}`} onClick={() => setSelected(o.id)}>
+            <button key={o.id} className={`adm-row ${selected === o.id ? 'active' : ''} ${o.priority ? 'ix' : ''}`} onClick={() => setSelected(o.id)}>
               <div className="adm-row-top">
                 <span className="adm-row-id">МК-{o.id}</span>
+                {o.priority && <i className="ix-badge" title="IX Black: заявка вне очереди">IX Black</i>}
                 <OrderChip status={o.status} />
                 <span className="adm-row-time">{fmtAgo(o.createdAt)}</span>
               </div>

@@ -34,6 +34,8 @@ export interface MeDto {
   botUsername: string;
   /** Profile numbers. An exchange is a completed USDT → RUB withdrawal. */
   stats: { exchanges: number; exchangedRub: number; memberSince: number };
+  /** IX Black status: null when never bought or expired. */
+  premium: { until: number } | null;
 }
 
 /** Deposits: USDT on TRON (TRC-20) only. */
@@ -125,7 +127,9 @@ export type NotificationType =
   | 'order_clarify'
   | 'deposit_credited'
   | 'usdt_payout_sent'
-  | 'usdt_payout_rejected';
+  | 'usdt_payout_rejected'
+  | 'premium_cashback'
+  | 'giveaway_won';
 
 export interface NotificationDto {
   id: number;
@@ -143,6 +147,8 @@ export interface NotificationDto {
   usdtPayout?: UsdtPayoutDto | null;
   /** obligation_repaid: what was held back and why. */
   deduction?: DeductionDto | null;
+  /** premium_cashback / giveaway_won: the amount credited. */
+  amountMicro?: number | null;
   createdAt: number;
 }
 
@@ -278,7 +284,15 @@ export type HistoryItem =
   | { type: 'check'; at: number; check: CheckDto }
   | { type: 'deposit'; at: number; deposit: DepositDto }
   | { type: 'deduction'; at: number; deduction: DeductionDto }
-  | { type: 'usdt_payout'; at: number; usdtPayout: UsdtPayoutDto };
+  | { type: 'usdt_payout'; at: number; usdtPayout: UsdtPayoutDto }
+  | { type: 'bonus'; at: number; bonus: BonusDto };
+
+/** Balance changes outside requests: IX Black purchase, its cashback, giveaway prizes. */
+export interface BonusDto {
+  kind: 'premium_purchase' | 'premium_cashback' | 'giveaway_prize';
+  /** Signed: negative for a purchase. */
+  amountMicro: number;
+}
 
 // ---------- USDT TRC-20 withdrawals ----------
 
@@ -307,6 +321,8 @@ export interface UsdtPayoutDto {
 
 export interface AdminUsdtPayoutDto extends UsdtPayoutDto {
   user: AdminUserRef;
+  /** Created by an IX Black holder: shown first. */
+  priority: boolean;
   amlDecision: 'clear' | 'review' | 'reject' | null;
   amlSignals: { source: string; hit: boolean; error?: string; detail?: string }[];
   adminNote: string | null;
@@ -425,6 +441,8 @@ export interface AdminDealUser {
 
 export interface AdminWithdrawalListItem {
   id: number;
+  /** Created by an IX Black holder: shown first in every admin list. */
+  priority: boolean;
   status: WithdrawalStatus;
   section: BoardSection | null;
   method: PayoutMethod;
@@ -620,6 +638,8 @@ export interface AdminBroadcastDto {
 
 export interface AdminOrderListItem {
   id: number;
+  /** Created by an IX Black holder: shown first. */
+  priority: boolean;
   kind: ServiceKind;
   status: OrderStatus;
   amountRub: number;
@@ -739,4 +759,61 @@ export interface AdminOrderCounts {
   clarify: number;
   paid: number;
   rejected: number;
+}
+
+// ---------- IX Black ----------
+
+export interface PremiumStatusDto {
+  /** End of the paid period; null when not active. */
+  until: number | null;
+  plans: { id: string; title: string; days: number; priceMicro: number; note: string | null }[];
+  cashback: { month: string; turnoverMicro: number; amountMicro: number }[];
+  /** Turnover counted so far this month while the status is active. */
+  monthTurnoverMicro: number;
+}
+
+export interface BuyPremiumRequest {
+  plan: string;
+  requestId: string;
+}
+
+export interface AdminPremiumDto {
+  active: { userId: number; name: string; username: string | null; until: number }[];
+  revenueMicro: number;
+  cashbackMicro: number;
+}
+
+// ---------- Giveaways ----------
+
+export interface GiveawayDto {
+  id: number;
+  title: string;
+  prizeMicro: number;
+  winners: number;
+  endsAt: number;
+  status: 'active' | 'drawn' | 'cancelled';
+  participants: number;
+  joined: boolean;
+  /** Masked winner names after the draw. */
+  results: { name: string; prizeMicro: number; you: boolean }[];
+}
+
+export interface AdminGiveawayDto {
+  id: number;
+  title: string;
+  prizeMicro: number;
+  winners: number;
+  endsAt: number;
+  status: 'active' | 'drawn' | 'cancelled';
+  participants: number;
+  createdAt: number;
+  drawnAt: number | null;
+  results: { userId: number; name: string; username: string | null; prizeMicro: number }[];
+}
+
+export interface CreateGiveawayRequest {
+  title: string;
+  prizeUsdt: number;
+  winners: number;
+  endsAt: number;
 }

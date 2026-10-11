@@ -2,6 +2,10 @@
 // Mirrors the server rules (shared/payout.ts) so the whole flow, admin side
 // included, can be clicked through without a server or Telegram.
 import type {
+  AdminGiveawayDto,
+  BonusDto,
+  GiveawayDto,
+  PremiumStatusDto,
   AdminDepositAddressDto,
   AdminStatsDto,
   AdminStatsPeriod,
@@ -31,6 +35,7 @@ import {
   USDT_MICRO,
 } from '../../../shared/payout';
 import { findBank } from '../../../shared/sbpBanks';
+import { PREMIUM_CASHBACK_BPS, PREMIUM_PLANS, premiumPlan } from '../../../shared/premium';
 import { validateUsdtPayout, type UsdtPayoutStatus } from '../../../shared/usdtPayout';
 import { DEPOSIT_QUARANTINE_MS, DEPOSIT_REQUEST_TTL_MS, type DepositRequestStatus } from '../../../shared/deposits';
 import { checkLink, cleanComment, isValidUsername, normalizeUsername, parseUsdt } from '../../../shared/transfers';
@@ -93,6 +98,8 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       availableMicro: usdt * USDT_MICRO, frozenMicro: 0, depositedMicro: usdt * USDT_MICRO, senderWallets: [],
     })),
   ];
+  // IX Black holders in the demo: their requests go first in the admin queues.
+  for (const id of [4, 7]) users.find((u) => u.id === id)!.premiumUntil = t0 + 19 * DAY;
   interface MockCheck { id: number; code: string; creatorId: number; amountMicro: number; comment: string | null; status: CheckDto['status']; createdAt: number; claimedBy: number | null; claimedAt: number | null }
   interface MockTransfer { id: number; from: number; to: number; amountMicro: number; kind: 'direct' | 'check'; comment: string | null; requestId: string | null; createdAt: number }
   const checks: MockCheck[] = [];
@@ -239,7 +246,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
   // USDT TRC-20 withdrawals: the demo operator "sends" them from the admin panel.
   const USDT_FEE = 5 * USDT_MICRO;
   const USDT_MIN = 10 * USDT_MICRO;
-  interface MockPayout { id: number; userId: number; requestId: string; address: string; amountMicro: number; status: UsdtPayoutStatus; txId: string | null; rejectReason: string | null; adminNote: string | null; balanceBefore: number; createdAt: number; finishedAt: number | null }
+  interface MockPayout { priority?: boolean; id: number; userId: number; requestId: string; address: string; amountMicro: number; status: UsdtPayoutStatus; txId: string | null; rejectReason: string | null; adminNote: string | null; balanceBefore: number; createdAt: number; finishedAt: number | null }
   const payouts: MockPayout[] = [];
   let payoutId = 1;
   const payoutDto = (p: MockPayout): UsdtPayoutDto => ({
@@ -247,7 +254,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
     txId: p.txId, rejectReason: p.rejectReason, createdAt: p.createdAt, finishedAt: p.finishedAt,
   });
   const payoutAdmin = (p: MockPayout): AdminUsdtPayoutDto => ({
-    ...payoutDto(p), user: userRef(p.userId)!, amlDecision: 'clear', amlSignals: [{ source: 'tether_blacklist', hit: false }, { source: 'ofac_sdn', hit: false }],
+    ...payoutDto(p), user: userRef(p.userId)!, priority: !!p.priority || (user(p.userId).premiumUntil ?? 0) > p.createdAt, amlDecision: 'clear', amlSignals: [{ source: 'tether_blacklist', hit: false }, { source: 'ofac_sdn', hit: false }],
     adminNote: p.adminNote, balanceBeforeMicro: p.balanceBefore,
     sameAddressBefore: payouts.filter((x) => x.id !== p.id && x.userId === p.userId && x.address === p.address && x.status === 'sent').length,
   });
@@ -263,6 +270,43 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
 
   const notify = (userId: number, type: NotificationType, withdrawalId: number | null, extra: Partial<NotificationDto> = {}) =>
     notifications.push({ id: notificationId++, userId, type, withdrawalId, createdAt: now(), seen: false, ...extra });
+
+  // ---------- IX Black and giveaways ----------
+  const subs: { userId: number; requestId: string; priceMicro: number }[] = [
+    { userId: 4, requestId: 'seed', priceMicro: PREMIUM_PLANS[0].priceMicro },
+    { userId: 7, requestId: 'seed', priceMicro: PREMIUM_PLANS[1].priceMicro },
+  ];
+  const bonuses: { userId: number; kind: BonusDto['kind']; amountMicro: number; at: number }[] = [];
+  const premiumStatus = (): PremiumStatusDto => {
+    const until = (me.premiumUntil ?? 0) > now() ? me.premiumUntil! : null;
+    // Turnover this month: completed card withdrawals while the status is on (demo approximation).
+    const turnover = until
+      ? engine.deals.filter((w) => w.userId === me.id && w.status === 'completed' && (w.finishedAt ?? 0) > until - 30 * DAY).reduce((a, w) => a + w.amountMicro, 0)
+      : 0;
+    return {
+      until,
+      plans: PREMIUM_PLANS.map((p) => ({ id: p.id, title: p.title, days: p.days, priceMicro: p.priceMicro, note: p.note })),
+      cashback: [],
+      monthTurnoverMicro: turnover,
+    };
+  };
+  void PREMIUM_CASHBACK_BPS;
+
+  interface MockGiveaway { id: number; title: string; prizeMicro: number; winners: number; endsAt: number; status: GiveawayDto['status']; createdAt: number; drawnAt: number | null; entries: Set<number>; results: { userId: number; prizeMicro: number }[] }
+  let giveawayId = 1;
+  const giveaways: MockGiveaway[] = [
+    { id: giveawayId++, title: 'Осенний розыгрыш', prizeMicro: 1000 * USDT_MICRO, winners: 10, endsAt: t0 + 3 * DAY + 5 * 3_600_000, status: 'active', createdAt: t0 - DAY, drawnAt: null, entries: new Set([2, 3, 4, 5, 6, 7, 9]), results: [] },
+  ];
+  const mask = (u: MockUser) => (u.lastName ? `${u.firstName} ${u.lastName.slice(0, 1)}.` : u.firstName);
+  const giveawayDto = (g: MockGiveaway): GiveawayDto => ({
+    id: g.id, title: g.title, prizeMicro: g.prizeMicro, winners: g.winners, endsAt: g.endsAt, status: g.status, participants: g.entries.size,
+    joined: g.entries.has(me.id), results: g.results.map((r) => ({ name: mask(user(r.userId)), prizeMicro: r.prizeMicro, you: r.userId === me.id })),
+  });
+  const giveawayAdmin = (g: MockGiveaway): AdminGiveawayDto => ({
+    id: g.id, title: g.title, prizeMicro: g.prizeMicro, winners: g.winners, endsAt: g.endsAt, status: g.status, participants: g.entries.size,
+    createdAt: g.createdAt, drawnAt: g.drawnAt,
+    results: g.results.map((r) => { const u = user(r.userId); return { userId: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' '), username: u.username, prizeMicro: r.prizeMicro }; }),
+  });
 
   const person = (id: number): PersonDto => {
     const u = user(id);
@@ -313,7 +357,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
   });
   const orderItem = (o: MockOrder): AdminOrderListItem => {
     const u = user(o.userId);
-    return { id: o.id, kind: o.kind, status: o.status, amountRub: o.amountRub, amountMicro: o.amountMicro, target: orderTarget(o),
+    return { id: o.id, priority: (u.premiumUntil ?? 0) > o.createdAt, kind: o.kind, status: o.status, amountRub: o.amountRub, amountMicro: o.amountMicro, target: orderTarget(o),
       createdAt: o.createdAt, user: { id: u.id, username: u.username, firstName: u.firstName, telegramId: u.telegramId } };
   };
   const orderAdmin = (id: number): AdminOrderDto => {
@@ -360,6 +404,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
           exchangedRub: engine.deals.filter((w) => w.userId === me.id && w.status === 'completed').reduce((a, w) => a + (w.finalRub ?? w.amountRub), 0),
           memberSince: me.createdAt,
         },
+        premium: (me.premiumUntil ?? 0) > now() ? { until: me.premiumUntil! } : null,
       }),
     withdrawals: () => delay({ items: engine.deals.filter((w) => w.userId === me.id).slice().reverse().map(engine.userDto) }),
     withdrawal: (id) => {
@@ -398,7 +443,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       delay({
         items: notifications
           .filter((n) => n.userId === me.id && !n.seen)
-          .map(({ id, type, withdrawalId, createdAt, transfer, check, order, deposit, deduction, usdtPayout }) => ({ id, type, withdrawalId, createdAt, transfer, check, order, deposit, deduction, usdtPayout })),
+          .map(({ id, type, withdrawalId, createdAt, transfer, check, order, deposit, deduction, usdtPayout, amountMicro }) => ({ id, type, withdrawalId, createdAt, transfer, check, order, deposit, deduction, usdtPayout, amountMicro })),
       }),
     markNotificationsSeen: (ids) => {
       for (const n of notifications) if (ids.includes(n.id)) n.seen = true;
@@ -415,6 +460,7 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
         ...orders.filter((o) => o.userId === me.id).map((o): HistoryItem => ({ type: 'order', at: o.createdAt, order: orderDto(o) })),
         ...payouts.filter((p) => p.userId === me.id).map((p): HistoryItem => ({ type: 'usdt_payout', at: p.createdAt, usdtPayout: payoutDto(p) })),
         ...deposits.filter((d) => d.userId === me.id && d.status !== 'failed').map((d): HistoryItem => ({ type: 'deposit', at: d.createdAt, deposit: depositDto(d) })),
+        ...bonuses.filter((b) => b.userId === me.id).map((b): HistoryItem => ({ type: 'bonus', at: b.at, bonus: { kind: b.kind, amountMicro: b.amountMicro } })),
       ];
       return delay({ items: items.sort((a, b) => b.at - a.at) });
     },
@@ -513,6 +559,31 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       engine.credit(me.id, c.amountMicro);
       return delay(checkDto(c));
     },
+    premium: () => delay(premiumStatus()),
+    buyPremium: (planId, requestId) => {
+      const plan = premiumPlan(planId) ?? fail(400, 'Выберите срок');
+      if (subs.some((s) => s.userId === me.id && s.requestId === requestId)) return delay(premiumStatus());
+      if (me.blocked) fail(403, 'Покупка недоступна. Свяжитесь с поддержкой');
+      assertNotLocked(me.id);
+      if (me.availableMicro < plan.priceMicro) fail(400, `Недостаточно средств: нужно ${plan.priceMicro / USDT_MICRO} USDT`);
+      const start = Math.max(now(), me.premiumUntil ?? 0);
+      me.premiumUntil = start + plan.days * DAY;
+      me.availableMicro -= plan.priceMicro;
+      subs.push({ userId: me.id, requestId, priceMicro: plan.priceMicro });
+      bonuses.push({ userId: me.id, kind: 'premium_purchase', amountMicro: -plan.priceMicro, at: now() });
+      return delay(premiumStatus());
+    },
+    giveaway: () => {
+      const g = giveaways.find((x) => x.status === 'active') ?? giveaways.find((x) => x.status === 'drawn' && (x.drawnAt ?? 0) > now() - 3 * DAY);
+      return delay({ giveaway: g ? giveawayDto(g) : null });
+    },
+    joinGiveaway: (id) => {
+      const g = giveaways.find((x) => x.id === id && x.status === 'active') ?? fail(404, 'Розыгрыш не найден');
+      if (g.endsAt <= now()) fail(400, 'Приём участников закончился');
+      assertNotLocked(me.id);
+      g.entries.add(me.id);
+      return delay(giveawayDto(g));
+    },
     demoClaimCheck: (code) => {
       const c = checks.find((x) => x.code === code) ?? fail(404, 'Чек не найден');
       if (c.status !== 'active') fail(409, 'Этот чек уже активирован');
@@ -592,6 +663,50 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
   };
 
   const admin: AdminApi = {
+    premium: () => delay({
+      active: users.filter((u) => (u.premiumUntil ?? 0) > now()).map((u) => ({ userId: u.id, name: [u.firstName, u.lastName].filter(Boolean).join(' '), username: u.username, until: u.premiumUntil! })),
+      revenueMicro: subs.reduce((a, s) => a + s.priceMicro, 0),
+      cashbackMicro: 0,
+    }),
+    giveaways: () => delay({ items: giveaways.slice().reverse().map(giveawayAdmin) }),
+    giveawayCreate: (req) => {
+      if (giveaways.some((g) => g.status === 'active')) fail(409, 'Уже идёт розыгрыш. Проведите или отмените его');
+      const title = String(req.title ?? '').trim();
+      if (!title) fail(400, 'Укажите название');
+      if (!(req.prizeUsdt > 0)) fail(400, 'Укажите призовой фонд');
+      if (!(req.winners >= 1 && req.winners <= 1000)) fail(400, 'Победителей от 1 до 1000');
+      if (!(req.endsAt > now())) fail(400, 'Дата окончания должна быть в будущем');
+      const g: MockGiveaway = { id: giveawayId++, title, prizeMicro: Math.round(req.prizeUsdt * USDT_MICRO), winners: Math.floor(req.winners), endsAt: req.endsAt, status: 'active', createdAt: now(), drawnAt: null, entries: new Set(), results: [] };
+      giveaways.push(g);
+      return delay(giveawayAdmin(g));
+    },
+    giveawayDraw: (id) => {
+      const g = giveaways.find((x) => x.id === id) ?? fail(404, 'Розыгрыш не найден');
+      if (g.status !== 'active') fail(400, 'Розыгрыш уже проведён или отменён');
+      if (g.endsAt > now()) fail(400, 'Розыгрыш ещё идёт. Провести можно после даты окончания');
+      const pool = [...g.entries].filter((uid) => !user(uid).blocked);
+      if (!pool.length) fail(400, 'Нет участников');
+      const n = Math.min(g.winners, pool.length);
+      for (let i = 0; i < n; i++) {
+        const j = i + Math.floor(Math.random() * (pool.length - i));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      const share = Math.floor(g.prizeMicro / n);
+      for (const uid of pool.slice(0, n)) {
+        g.results.push({ userId: uid, prizeMicro: share });
+        engine.credit(uid, share);
+        bonuses.push({ userId: uid, kind: 'giveaway_prize', amountMicro: share, at: now() });
+        notify(uid, 'giveaway_won', null, { amountMicro: share });
+      }
+      g.status = 'drawn';
+      g.drawnAt = now();
+      return delay(giveawayAdmin(g));
+    },
+    giveawayCancel: (id) => {
+      const g = giveaways.find((x) => x.id === id && x.status === 'active') ?? fail(400, 'Отменить можно только идущий розыгрыш');
+      g.status = 'cancelled';
+      return delay(giveawayAdmin(g));
+    },
     stats: () => delay(statsDto()),
     board: () => delay(engine.admin.board()),
     archive: (q) => delay(engine.admin.archive(q)),
@@ -612,7 +727,10 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
     orders: (status) => {
       const c: AdminOrderCounts = { pending: 0, clarify: 0, paid: 0, rejected: 0 };
       for (const o of orders) c[o.status]++;
-      return delay({ items: orders.filter((o) => status === 'all' || o.status === status).slice().reverse().map(orderItem), counts: c });
+      const list = orders.filter((o) => status === 'all' || o.status === status).slice().reverse().map(orderItem);
+      // Open queues: IX Black first, then oldest first, like the server.
+      if (status === 'pending' || status === 'clarify') list.sort((a, b) => Number(b.priority) - Number(a.priority) || a.id - b.id);
+      return delay({ items: list, counts: c });
     },
     orderGet: (id) => delay(orderAdmin(id)),
     orderPaid: (id) => {
@@ -675,7 +793,9 @@ export function createMockBackend(snapshot: { rate: WalletRate; coins: MarketCoi
       if (status !== 'new') items.reverse();
       const c = { new: 0, sent: 0, rejected: 0 };
       for (const p of payouts) c[p.status]++;
-      return delay({ items: items.map(payoutAdmin), counts: c });
+      const list = items.map(payoutAdmin);
+      if (status === 'new') list.sort((x, y) => Number(y.priority) - Number(x.priority) || x.id - y.id);
+      return delay({ items: list, counts: c });
     },
     usdtPayoutSent: (id, txIdRaw, force) => {
       const txId = txIdRaw.trim().toLowerCase();

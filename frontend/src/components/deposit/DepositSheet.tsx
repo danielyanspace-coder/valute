@@ -102,7 +102,7 @@ export function DepositSheet({ open, onClose }: { open: boolean; onClose: () => 
           <Placeholder title="Пополнение временно недоступно" text="Мы уже настраиваем приём USDT. Загляните чуть позже." />
         ) : active ? (
           <div className="dep-card">
-            <div className={`dep-timer ${active.expiresAt - now < 3 * 60_000 ? 'hot' : ''}`}>
+            <div className={`dep-timer ${active.expiresAt - now < 3 * 60_000 ? 'hot' : ''} ${active.expiresAt - now < 60_000 ? 'last' : ''}`}>
               <IconClock size={15} /> Осталось {fmtCountdown(active.expiresAt - now)}
             </div>
             <div className="dep-qr"><QrCode value={active.address} size={208} /></div>
@@ -114,7 +114,7 @@ export function DepositSheet({ open, onClose }: { open: boolean; onClose: () => 
             </div>
             {info.demo && <span className="dep-demo">Демо-адрес, он не настоящий. Не отправляйте на него средства</span>}
             <button className="btn primary dep-copy" onClick={copy}>
-              {copied ? <><IconCheck size={16} /> Скопировано</> : <><IconCopy size={16} /> Скопировать адрес</>}
+              {copied ? <span className="copied-pop"><IconCheck size={16} /> Скопировано</span> : <><IconCopy size={16} /> Скопировать адрес</>}
             </button>
             {confirmCancel ? (
               <div className="dep-cancel-confirm">

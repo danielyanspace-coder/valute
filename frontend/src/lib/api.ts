@@ -1,4 +1,9 @@
 import type {
+  AdminGiveawayDto,
+  AdminPremiumDto,
+  CreateGiveawayRequest,
+  GiveawayDto,
+  PremiumStatusDto,
   AdminAuditItem,
   AdminBoardDto,
   AdminBroadcastDto,
@@ -105,6 +110,10 @@ export interface Api {
   lookupFine(uin: string): Promise<FineLookupDto>;
   createOrder(req: CreateOrderRequest & { platform?: string }): Promise<ServiceOrderDto>;
   order(id: number): Promise<ServiceOrderDto>;
+  premium(): Promise<PremiumStatusDto>;
+  buyPremium(plan: string, requestId: string): Promise<PremiumStatusDto>;
+  giveaway(): Promise<{ giveaway: GiveawayDto | null }>;
+  joinGiveaway(id: number): Promise<GiveawayDto>;
   /** Demo only: pretend a friend pressed "Получить" on the check. */
   demoClaimCheck?(code: string): Promise<unknown>;
 }
@@ -123,6 +132,11 @@ export type DealActionPath =
   | 'note';
 
 export interface AdminApi {
+  premium(): Promise<AdminPremiumDto>;
+  giveaways(): Promise<{ items: AdminGiveawayDto[] }>;
+  giveawayCreate(req: CreateGiveawayRequest): Promise<AdminGiveawayDto>;
+  giveawayDraw(id: number): Promise<AdminGiveawayDto>;
+  giveawayCancel(id: number): Promise<AdminGiveawayDto>;
   board(): Promise<AdminBoardDto>;
   archive(q: ArchiveQuery): Promise<{ items: AdminWithdrawalListItem[] }>;
   deal(id: number): Promise<AdminWithdrawalDto>;
@@ -196,6 +210,10 @@ export const httpApi: Api = {
   notifications: () => request('GET', '/api/notifications', userAuth()),
   markNotificationsSeen: (ids) => request('POST', '/api/notifications/seen', userAuth(), { ids }),
   history: () => request('GET', '/api/history', userAuth()),
+  premium: () => request('GET', '/api/premium', userAuth()),
+  buyPremium: (plan, requestId) => request('POST', '/api/premium/buy', userAuth(), { plan, requestId }),
+  giveaway: () => request('GET', '/api/giveaways/current', userAuth()),
+  joinGiveaway: (id) => request('POST', `/api/giveaways/${id}/join`, userAuth(), {}),
   deposit: () => request('GET', '/api/deposit', userAuth()),
   depositOpen: () => request('POST', '/api/deposit/request', userAuth(), {}),
   depositCancel: () => request('POST', '/api/deposit/request/cancel', userAuth(), {}),
@@ -247,6 +265,11 @@ export function httpAdminApi(token: string): AdminApi {
     depositPoolAdd: (address, label, own) => post('/deposit-pool', { address, label, own }),
     depositPoolUpdate: (id, patch) => post(`/deposit-pool/${id}`, patch),
     depositPoolRemove: (id) => post(`/deposit-pool/${id}/remove`),
+    premium: () => request('GET', '/api/admin/premium', auth),
+    giveaways: () => request('GET', '/api/admin/giveaways', auth),
+    giveawayCreate: (req) => post('/giveaways', req),
+    giveawayDraw: (id) => post(`/giveaways/${id}/draw`),
+    giveawayCancel: (id) => post(`/giveaways/${id}/cancel`),
     depositReject: (id, reason) => post(`/deposits/${id}/reject`, { reason }),
   };
 }

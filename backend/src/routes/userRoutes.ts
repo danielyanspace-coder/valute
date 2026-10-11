@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import type { CreateCheckRequest, CreateOrderRequest, CreateUsdtPayoutRequest, CreateWithdrawalRequest, DepositInfoDto, FineLookupDto, HistoryItem, MeDto, NotificationDto, SendTransferRequest, ServicesConfigDto } from '../../../shared/api.js';
+import type { BuyPremiumRequest, CreateCheckRequest, CreateOrderRequest, CreateUsdtPayoutRequest, CreateWithdrawalRequest, DepositInfoDto, FineLookupDto, HistoryItem, MeDto, NotificationDto, SendTransferRequest, ServicesConfigDto } from '../../../shared/api.js';
 import type { DepositService } from '../deposits/depositService.js';
 import type { UsdtPayoutService } from '../usdtPayouts/usdtPayoutService.js';
 import { STEAM_MAX_RUB, STEAM_MIN_RUB, MAX_PARKING_RUB, MIN_PARKING_RUB } from '../../../shared/services.js';
@@ -12,6 +12,8 @@ import type { NotificationService } from '../notifications/notificationService.j
 import type { RateService } from '../rates/rateService.js';
 import type { ObligationService } from '../obligations/obligationService.js';
 import type { WithdrawalService } from '../withdrawals/withdrawalService.js';
+import type { PremiumService } from '../premium/premiumService.js';
+import type { GiveawayService } from '../giveaways/giveawayService.js';
 
 export interface UserRouteDeps {
   ledger: Ledger;
@@ -29,6 +31,8 @@ export interface UserRouteDeps {
   fineLookup: FineLookup;
   servicesDiscountPercent: number;
   obligations: ObligationService;
+  premium: PremiumService;
+  giveaways: GiveawayService;
 }
 
 /** Routes for the Mini App. Registered inside a scope that already runs Telegram auth. */
@@ -65,6 +69,10 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
       usdtPayout: { feeMicro: deps.usdtPayouts.opts.feeMicro, minMicro: deps.usdtPayouts.opts.minMicro },
       botUsername: deps.botUsername(),
       stats: { ...deps.withdrawals.exchangeStats(u.id), memberSince: u.created_at },
+      premium: (() => {
+        const until = deps.premium.until(u.id);
+        return until ? { until } : null;
+      })(),
     };
   });
 
@@ -111,6 +119,14 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     deps.withdrawals.toUserDto(deps.withdrawals.userOtherAmount(req.user!.id, Number(req.params.id), Number(req.body?.amountRub))),
   );
 
+  // IX Black: paid status bought from the balance.
+  app.get('/api/premium', async (req) => deps.premium.status(req.user!.id));
+  app.post<{ Body: BuyPremiumRequest }>('/api/premium/buy', async (req) => deps.premium.buy(req.user!, req.body ?? ({} as BuyPremiumRequest)));
+
+  // Free giveaways: one tap to join, nothing to pay.
+  app.get('/api/giveaways/current', async (req) => ({ giveaway: deps.giveaways.current(req.user!.id) }));
+  app.post<{ Params: { id: string } }>('/api/giveaways/:id/join', async (req) => deps.giveaways.join(req.user!, Number(req.params.id)));
+
   app.get('/api/notifications', async (req) => {
     const uid = req.user!.id;
     const items = deps.notifications.unseen(uid).map((n): NotificationDto => {
@@ -131,6 +147,7 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
         deduction: n.type === 'obligation_repaid' && n.obligationId
           ? { id: n.id, amountMicro: n.amountMicro ?? 0, reason: deps.obligations.get(n.obligationId).publicReason, createdAt: n.createdAt }
           : null,
+        amountMicro: n.type === 'premium_cashback' || n.type === 'giveaway_won' ? n.amountMicro : null,
         createdAt: n.createdAt,
       };
     });
@@ -167,7 +184,8 @@ export function userRoutes(app: FastifyInstance, deps: UserRouteDeps) {
     });
     const deductions = deps.obligations.deductionsForUser(uid).map((deduction): HistoryItem => ({ type: 'deduction', at: deduction.createdAt, deduction }));
     const payouts = deps.usdtPayouts.listForUser(uid).map((p): HistoryItem => ({ type: 'usdt_payout', at: p.created_at, usdtPayout: deps.usdtPayouts.toUserDto(p) }));
-    return { items: [...deps.transfers.history(uid), ...orders, ...deposits, ...deductions, ...payouts].sort((a, b) => b.at - a.at).slice(0, 100) };
+    const bonuses = deps.premium.history(uid).map((b): HistoryItem => ({ type: 'bonus', ...b }));
+    return { items: [...deps.transfers.history(uid), ...orders, ...deposits, ...deductions, ...payouts, ...bonuses].sort((a, b) => b.at - a.at).slice(0, 100) };
   });
 
   // ---------- Services: fines, parking, Steam ----------

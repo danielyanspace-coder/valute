@@ -19,6 +19,8 @@ import type { OrderService } from './orders/orderService.js';
 import type { FineLookup } from './orders/fineLookup.js';
 import type { DepositService } from './deposits/depositService.js';
 import type { UsdtPayoutService } from './usdtPayouts/usdtPayoutService.js';
+import type { PremiumService } from './premium/premiumService.js';
+import type { GiveawayService } from './giveaways/giveawayService.js';
 import type { StatsService } from './stats/statsService.js';
 import type { AuditLog } from './audit/auditLog.js';
 import type { ObligationService } from './obligations/obligationService.js';
@@ -44,6 +46,8 @@ export interface AppDeps {
   deposits: DepositService;
   usdtPayouts: UsdtPayoutService;
   stats: StatsService;
+  premium: PremiumService;
+  giveaways: GiveawayService;
   audit: AuditLog;
   obligations: ObligationService;
   broadcasts: BroadcastService;

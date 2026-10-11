@@ -35,6 +35,11 @@ export const AUDIT_TYPES = {
   usdt_payout_sent: 'Вывод USDT отправлен',
   usdt_payout_rejected: 'Вывод USDT отклонён',
   broadcast_sent: 'Рассылка',
+  premium_bought: 'Куплен IX Black',
+  premium_cashback: 'Кэшбэк IX Black',
+  giveaway_created: 'Создан розыгрыш',
+  giveaway_drawn: 'Проведён розыгрыш',
+  giveaway_cancelled: 'Розыгрыш отменён',
 } as const;
 
 export type AuditType = keyof typeof AUDIT_TYPES;

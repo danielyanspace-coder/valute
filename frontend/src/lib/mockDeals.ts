@@ -75,10 +75,13 @@ export interface DemoUser {
   senderWallets: { address: string; deposits: number; lastAt: number }[];
   supportLockedAt: number | null;
   botBlockedAt: number | null;
+  /** IX Black end; requests made before it are priority. */
+  premiumUntil?: number | null;
 }
 
 interface Deal {
   id: number;
+  priority: boolean;
   userId: number;
   requestId: string;
   method: 'sbp' | 'card';
@@ -245,7 +248,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
   const listItem = (d: Deal): AdminWithdrawalListItem => {
     const u = user(d.userId);
     return {
-      id: d.id, status: d.status, section: boardSection({ status: d.status, requisiteOffAt: d.requisiteOffAt }), method: d.method,
+      id: d.id, priority: d.priority, status: d.status, section: boardSection({ status: d.status, requisiteOffAt: d.requisiteOffAt }), method: d.method,
       amountRub: d.amountRub, amountMicro: d.amountMicro, destination: destination(d), requisite: requisite(d), bankId: d.bankId,
       bankName: d.bankName, createdAt: d.createdAt, takenAt: d.takenAt, enteredAt: d.enteredAt, requisiteOffAt: d.requisiteOffAt,
       remindersSent: d.remindersSent,
@@ -361,6 +364,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
       status: 'new', takenAt: null, enteredAt: null, requisiteOffAt: null, remindersSent: 0, reminders: [], inactiveSince: null,
       userDecision: null, userDecidedAt: null, userActiveAt: null, reportedRub: null, userConfirmedAt: null, finalRub: null, debitedMicro: null,
       refundedMicro: null, resolution: null, externalId: null, finishedAt: null, platform: 'ios',
+      priority: (u.premiumUntil ?? 0) > p.createdAt,
     };
     u.availableMicro -= d.amountMicro;
     u.frozenMicro += d.amountMicro;
@@ -521,7 +525,7 @@ export function createDealEngine(ctx: DealEngineCtx) {
 
   const board = (): AdminBoardDto => {
     tick();
-    const items = deals.filter((d) => ACTIVE_STATUSES.includes(d.status)).sort((a, b) => a.createdAt - b.createdAt).map(listItem);
+    const items = deals.filter((d) => ACTIVE_STATUSES.includes(d.status)).sort((a, b) => Number(b.priority) - Number(a.priority) || a.createdAt - b.createdAt).map(listItem);
     const counts = Object.fromEntries(BOARD_SECTIONS.map((s) => [s.id, 0])) as Record<BoardSection, number>;
     for (const i of items) if (i.section) counts[i.section]++;
     return { items, counts, serverNow: now() };

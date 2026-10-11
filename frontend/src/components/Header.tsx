@@ -5,6 +5,7 @@ export interface HeaderUser {
   photoUrl?: string | null;
 }
 import { IconHeadset, IconHelp, IconMoon, IconSun } from './icons';
+import { PremiumChip } from './premium/Premium';
 
 interface Props {
   user: HeaderUser | null;
@@ -14,9 +15,10 @@ interface Props {
   onProfile: () => void;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  premium?: boolean;
 }
 
-export function Header({ user, supportUnread, onSupport, onHelp, onProfile, theme, onToggleTheme }: Props) {
+export function Header({ user, supportUnread, onSupport, onHelp, onProfile, theme, onToggleTheme, premium }: Props) {
   const name = user ? [user.firstName, user.lastName].filter(Boolean).join(' ') : '';
   const initials = name.slice(0, 1).toUpperCase() || '·';
   return (
@@ -28,6 +30,7 @@ export function Header({ user, supportUnread, onSupport, onHelp, onProfile, them
         </div>
         <div className="header-names">
           <div className="header-name">{name}</div>
+          {premium && <PremiumChip />}
         </div>
       </button>
       <div className="header-actions">

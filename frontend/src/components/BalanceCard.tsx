@@ -1,4 +1,5 @@
 import { fmtUsd } from '../lib/format';
+import { useCountUp } from '../lib/motion';
 import { IconEye, IconEyeOff, IconSnow, LogoX } from './icons';
 
 interface Props {
@@ -44,7 +45,9 @@ const whole = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
 
 /** Big dollars, smaller cents: the balance is the anchor of the screen. */
 function BalanceDigits({ value }: { value: number }) {
-  const cents = Math.round(value * 100);
+  // A new deposit or a purchase rolls the number instead of jumping.
+  const shown = useCountUp(value);
+  const cents = Math.round(shown * 100);
   const int = Math.floor(cents / 100);
   const frac = String(cents % 100).padStart(2, '0');
   return (
