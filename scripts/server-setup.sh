@@ -33,9 +33,9 @@ dpkg-reconfigure -f noninteractive unattended-upgrades >/dev/null 2>&1 || true
 cat > /etc/fail2ban/jail.d/cryptoix.local <<'JAIL'
 [sshd]
 enabled = true
-maxretry = 5
+maxretry = 8
 findtime = 10m
-bantime = 1h
+bantime = 15m
 JAIL
 systemctl enable --now fail2ban >/dev/null 2>&1 || true
 systemctl restart fail2ban || true

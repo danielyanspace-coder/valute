@@ -94,3 +94,14 @@ bash /opt/cryptoix/scripts/update.sh
    ```
    Ключи: deposit (пополнение), received (пришли деньги), withdraw, success, cancel, pending, clock, warning, check (чек), usdt, lock, unlock, support, hold (удержание), brand и point (приветствие), gift.
 5. `systemctl restart cryptoix`. Эмодзи без ID остаются обычными.
+
+## SSH не пускает (таймаут)
+
+Войти в консоль сервера в личном кабинете Aeza и набрать две строки:
+
+```bash
+bash /opt/cryptoix/scripts/update.sh
+bash /opt/cryptoix/scripts/ssh-fix.sh
+```
+
+`ssh-fix.sh` проверяет sshd, ufw и fail2ban, снимает баны, добавляет запасной порт 2222 и минуту слушает сеть, пока вы пробуете подключиться. В конце пишет, где блокировка: на сервере или до него (Aeza или провайдер).
